@@ -1,3 +1,5 @@
+#julia pottsgs.jl --length 10 --dtheta 0.25 --outdir /home/christopher/work/2019-10-MAGIC/data --subdate TEST
+
 using ITensors
 using ArgParse
 using ProgressMeter
