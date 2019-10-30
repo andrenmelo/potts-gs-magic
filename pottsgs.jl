@@ -1,6 +1,7 @@
 using ITensors
 using ArgParse
 using ProgressMeter
+using Serialization
 import ITensors.op
 
 jobname = "M01"
@@ -111,31 +112,24 @@ s = ArgParseSettings()
 @add_arg_table s begin
     "--length",    "-l" # help = "chain of length"
     "--dtheta"
+    "--outdir"
+    "--subdate"
 end
 opts = parse_args(s)
 
-dθ = opts["dtheta"]
-L  = opts["length"]
+dθ = parse(Float64, opts["dtheta"])
+L  = parse(Int64, opts["length"])
+outdir  = opts["outdir"]
+subdate = opts["subdate"]
 
 itensors_dir = ENV["ITENSORSJL_DIR"]
-
-@show @__DIR__()
 
 dir = "$outdir/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L"
 mkpath(dir)
 
 θs = (0.1:dθ:1.9) * π/4
-qs = [(smb = :X, tp = Complex{Float64})]
-
-sites = pottsSites(N)
-
-SvNmax = Array{Float64}(undef, length(θs))
-mn     = Array{Float64}(undef, length(θs))
-chimax = Array{Int64}(undef, length(θs))
+sites = pottsSites(L)
 @showprogress for (jθ, θ) in enumerate(θs)
     E, ψ = potts3gs(θ, sites, quiet=true)
-    d = measure(ψ, sites, qs)
-    SvNmax[jθ] = maximum(d[:SvN])
-    chimax[jθ] = maximum(d[:χ])
-    mn[jθ]   = mana(ψ, middlesection(N,l)...)
+    serialize("$(dir)/$(jθ).p", (θ,ψ))
 end
