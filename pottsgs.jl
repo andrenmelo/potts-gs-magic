@@ -7,7 +7,6 @@ using Serialization
 import ITensors.op
 
 jobname = "M01"
-data_dir = "/home/christopher/work/2019-10-MAGIC/data"
 
 git_commit() = String(read(pipeline(`git log`, `head -1`, `cut -d ' ' -f 2`, `cut -b 1-7`))[1:end-1])
 git_commit(path :: String) = cd(git_commit, path)
