@@ -11,8 +11,6 @@ jobname = "M01"
 git_commit() = String(read(pipeline(`git log`, `head -1`, `cut -d ' ' -f 2`, `cut -b 1-7`))[1:end-1])
 git_commit(path :: String) = cd(git_commit, path)
 
-
-
 function pottsSites(N :: Int; q :: Int = 3)
   return [Index(q, "Site,Potts,n=$n") for n = 1:N]
 end
@@ -130,6 +128,7 @@ mkpath(dir)
 
 θs = (0.1:dθ:1.9) * π/4
 sites = pottsSites(L)
+serialize("$(dir)/sites.p", sites)
 @showprogress for (jθ, θ) in enumerate(θs)
     E, ψ = potts3gs(θ, sites, quiet=true)
     serialize("$(dir)/$(jθ).p", (θ,ψ))
