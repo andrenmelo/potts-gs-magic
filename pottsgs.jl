@@ -121,14 +121,14 @@ end
 opts = parse_args(s)
 
 dθ = parse(Float64, opts["dtheta"])
-λ  = parse(Float64, opts["dtheta"])
+λ  = parse(Float64, opts["lambda"])
 L  = parse(Int64, opts["length"])
 outdir  = opts["outdir"]
 subdate = opts["subdate"]
 
 itensors_dir = ENV["ITENSORSJL_DIR"]
 
-dir = "$outdir/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-dtheta$dθ-lambda$λ"
+dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-dtheta$dθ-lambda$λ"
 mkpath(dir)
 
 θs = (0.1:dθ:1.9) * π/4
