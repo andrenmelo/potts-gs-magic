@@ -65,7 +65,7 @@ function op(::PottsSite,
   return Op
 end    
 
-function potts3gs(θ, sites; quiet=false)
+function potts3gs(θ, λ, sites; quiet=false)
     N = length(sites)
     
     if !quiet @show θ end
@@ -77,7 +77,10 @@ function potts3gs(θ, sites; quiet=false)
     end
    
     for j = 1:N
-        add!(ampo, -cos(θ), "X+XH", j)
+        add!(ampo, -cos(θ), "X",  j)
+        add!(ampo, -cos(θ), "XH", j)
+        add!(ampo, -λ, "Z",  j)
+        add!(ampo, -λ, "ZH", j)
     end
 
     H = toMPO(ampo, sites);
@@ -111,25 +114,27 @@ s = ArgParseSettings()
 @add_arg_table s begin
     "--length",    "-l" # help = "chain of length"
     "--dtheta"
+    "--lambda"
     "--outdir"
     "--subdate"
 end
 opts = parse_args(s)
 
 dθ = parse(Float64, opts["dtheta"])
+λ  = parse(Float64, opts["dtheta"])
 L  = parse(Int64, opts["length"])
 outdir  = opts["outdir"]
 subdate = opts["subdate"]
 
 itensors_dir = ENV["ITENSORSJL_DIR"]
 
-dir = "$outdir/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L"
+dir = "$outdir/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-dtheta$dθ-lambda$λ"
 mkpath(dir)
 
 θs = (0.1:dθ:1.9) * π/4
 sites = pottsSites(L)
 serialize("$(dir)/sites.p", sites)
 @showprogress for (jθ, θ) in enumerate(θs)
-    E, ψ = potts3gs(θ, sites, quiet=true)
+    E, ψ = potts3gs(θ, λ, sites, quiet=true)
     serialize("$(dir)/$(jθ).p", (θ,ψ))
 end
