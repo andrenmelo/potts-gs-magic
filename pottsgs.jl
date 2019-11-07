@@ -98,7 +98,7 @@ function potts3gs(θ, λ, sites; quiet=false)
     E2, ψ2 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer)
 
     if abs(E1 - E2) > 1e-6
-        error("Energy difference: θ = $θ, $E1 vs $E2")
+        @warn("Energy difference: θ = $θ, $E1 vs $E2")
     end
     
     #may have gs degeneracy
@@ -107,14 +107,16 @@ function potts3gs(θ, λ, sites; quiet=false)
         error("Overlap bad: $θ, $ovlp")
     end
     =#
-    return E1, ψ1
+    return E1, E2, ψ1
 end
 
 s = ArgParseSettings()
 @add_arg_table s begin
     "--length",    "-l" # help = "chain of length"
-    "--dtheta"
-    "--lambda"
+    "--dtheta",   default => "0.01"
+    "--thetamin", default => "0.1"
+    "--thetamax", default => "1.9"
+    "--lambda",   default => "0.0"
     "--outdir"
     "--subdate"
 end
@@ -123,18 +125,23 @@ opts = parse_args(s)
 dθ = parse(Float64, opts["dtheta"])
 λ  = parse(Float64, opts["lambda"])
 L  = parse(Int64, opts["length"])
+
+θmin = parse(Float64, opts["thetamin"])
+θmax = parse(Float64, opts["thetamax"])
+
 outdir  = opts["outdir"]
 subdate = opts["subdate"]
 
 itensors_dir = ENV["ITENSORSJL_DIR"]
 
-dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-dtheta$dθ-lambda$λ"
+dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ"
 mkpath(dir)
 
-θs = (0.1:dθ:1.9) * π/4
+θs = (θmin:dθ:θmax) * π/4
+@show L, θs, λ
 sites = pottsSites(L)
 serialize("$(dir)/sites.p", sites)
 @showprogress for (jθ, θ) in enumerate(θs)
-    E, ψ = potts3gs(θ, λ, sites, quiet=true)
-    serialize("$(dir)/$(jθ).p", (θ,ψ))
+    E1,E2, ψ = potts3gs(θ, λ, sites, quiet=true)
+    serialize("$(dir)/$(jθ).p", (θ,E1,E2,ψ))
 end
