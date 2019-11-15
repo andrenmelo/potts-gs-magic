@@ -5,6 +5,7 @@ using ArgParse
 using ProgressMeter
 using Serialization
 import ITensors.op
+import ITensors.randomMPS
 
 jobname = "M01"
 
@@ -13,6 +14,20 @@ git_commit(path :: String) = cd(git_commit, path)
 
 function pottsSites(N :: Int; q :: Int = 3)
   return [Index(q, "Site,Potts,n=$n") for n = 1:N]
+end
+
+randomMPS(sites, χ :: Int64) = randomMPS(Float64, sites, χ)
+function randomMPS(::Type{S}, sites, χ :: Int64) where S <: Number
+    N = length(sites)
+    links = [Index(χ, "Link,l=$ii") for ii in 1:N-1]
+
+    M = MPS(sites)
+    M[1] = randomITensor(S, links[1], sites[1])
+    for j = 2:N-1
+        M[j] = randomITensor(S, links[j-1], links[j], sites[j])
+    end
+    M[N] = randomITensor(S, links[N-1], sites[N])
+    return M
 end
 
 const PottsSite = makeTagType("Potts")
@@ -65,7 +80,7 @@ function op(::PottsSite,
   return Op
 end    
 
-function potts3gs(θ, λ, sites; quiet=false)
+function potts3gs(θ, λ, χ0, sites; quiet=false)
     N = length(sites)
     
     if !quiet @show θ end
@@ -91,10 +106,10 @@ function potts3gs(θ, λ, sites; quiet=false)
     maxdim!(sweeps, 10,20,100,100,200)
     cutoff!(sweeps, 1E-10)
     
-    ψ0 = randomMPS(sites)
+    ψ0 = randomMPS(Complex{Float64}, sites, χ0)
     E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
     
-    ψ0= randomMPS(sites)
+    ψ0= randomMPS(Complex{Float64}, sites, χ0)
     E2, ψ2 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer)
 
     if abs(E1 - E2) > 1e-6
@@ -117,6 +132,7 @@ s = ArgParseSettings()
     "--thetamin", default => "0.1"
     "--thetamax", default => "1.9"
     "--lambda",   default => "0.0"
+    "--chi0",     default => "1"
     "--outdir"
     "--subdate"
 end
@@ -125,6 +141,7 @@ opts = parse_args(s)
 dθ = parse(Float64, opts["dtheta"])
 λ  = parse(Float64, opts["lambda"])
 L  = parse(Int64, opts["length"])
+χ0 = parse(Int64, opts["chi0"])
 
 θmin = parse(Float64, opts["thetamin"])
 θmax = parse(Float64, opts["thetamax"])
@@ -134,7 +151,7 @@ subdate = opts["subdate"]
 
 itensors_dir = ENV["ITENSORSJL_DIR"]
 
-dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ"
+dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi0$χ0"
 mkpath(dir)
 
 θs = (θmin:dθ:θmax) * π/4
@@ -142,6 +159,6 @@ mkpath(dir)
 sites = pottsSites(L)
 serialize("$(dir)/sites.p", sites)
 @showprogress for (jθ, θ) in enumerate(θs)
-    E1,E2, ψ = potts3gs(θ, λ, sites, quiet=true)
+    E1,E2, ψ = potts3gs(θ, λ, χ0, sites, quiet=true)
     serialize("$(dir)/$(jθ).p", (θ,E1,E2,ψ))
 end
