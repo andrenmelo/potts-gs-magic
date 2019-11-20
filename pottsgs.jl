@@ -7,8 +7,6 @@ using Serialization
 import ITensors.op
 import ITensors.randomMPS
 
-jobname = "M01"
-
 git_commit() = String(read(pipeline(`git log`, `head -1`, `cut -d ' ' -f 2`, `cut -b 1-7`))[1:end-1])
 git_commit(path :: String) = cd(git_commit, path)
 
@@ -133,6 +131,7 @@ s = ArgParseSettings()
     "--thetamax", default => "1.9"
     "--lambda",   default => "0.0"
     "--chi0",     default => "1"
+    "--jobname",  default => "M"
     "--outdir"
     "--subdate"
 end
@@ -142,6 +141,7 @@ dθ = parse(Float64, opts["dtheta"])
 λ  = parse(Float64, opts["lambda"])
 L  = parse(Int64, opts["length"])
 χ0 = parse(Int64, opts["chi0"])
+jobname = opts["jobname"]
 
 θmin = parse(Float64, opts["thetamin"])
 θmax = parse(Float64, opts["thetamax"])
