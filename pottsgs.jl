@@ -98,9 +98,10 @@ function potts3gs(θ, λ, χ0, sites; quiet=false)
 
     H = toMPO(ampo, sites);
     
-    observer = DMRGObserver(Array{String}(undef,0), sites, 1e-7)
+    #observer = DMRGObserver(Array{String}(undef,0), sites, 1e-7)
+    observer = DMRGObserver(Array{String}(undef,0), sites)
     
-    sweeps = Sweeps(400)
+    sweeps = Sweeps(200)
     maxdim!(sweeps, 10,20,100,100,200)
     cutoff!(sweeps, 1E-10)
     
@@ -120,7 +121,7 @@ function potts3gs(θ, λ, χ0, sites; quiet=false)
         error("Overlap bad: $θ, $ovlp")
     end
     =#
-    return E1, E2, ψ1
+    return E1, E2, observer.energies, ψ1
 end
 
 s = ArgParseSettings()
@@ -159,6 +160,6 @@ mkpath(dir)
 sites = pottsSites(L)
 serialize("$(dir)/sites.p", sites)
 @showprogress for (jθ, θ) in enumerate(θs)
-    E1,E2, ψ = potts3gs(θ, λ, χ0, sites, quiet=true)
-    serialize("$(dir)/$(jθ).p", (θ,E1,E2,ψ))
+    E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true)
+    serialize("$(dir)/$(jθ).p", (θ,E1,E2,energies,ψ))
 end
