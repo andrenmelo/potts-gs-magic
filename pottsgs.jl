@@ -98,12 +98,13 @@ function potts3gs(θ, λ, χ0, sites; quiet=false)
 
     H = toMPO(ampo, sites);
     
-    #observer = DMRGObserver(Array{String}(undef,0), sites, 1e-7)
-    observer = DMRGObserver(Array{String}(undef,0), sites)
+    observer = DMRGObserver(Array{String}(undef,0), sites, 1e-7)
+    #observer = DMRGObserver(Array{String}(undef,0), sites)
     
     sweeps = Sweeps(200)
     maxdim!(sweeps, 10,20,100,100,200)
     cutoff!(sweeps, 1E-10)
+    noise!(sweeps, 1e-1,1e-2,1e-2,[10.0^(-j) for j in 2:10]...)
     
     ψ0 = randomMPS(Complex{Float64}, sites, χ0)
     E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
