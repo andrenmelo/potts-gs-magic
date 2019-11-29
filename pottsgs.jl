@@ -104,7 +104,7 @@ function potts3gs(θ, λ, χ0, sites;
 
     H = toMPO(ampo, sites);
     
-    observer = DMRGObserver(Array{String}(undef,0), sites, 1e-7)
+    observer = DMRGObserver(Array{String}(undef,0), sites, 1e-10)
     #observer = DMRGObserver(Array{String}(undef,0), sites)
     
     sweeps = Sweeps(200)
