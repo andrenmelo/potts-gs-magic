@@ -78,8 +78,14 @@ function op(::PottsSite,
   return Op
 end    
 
-function potts3gs(θ, λ, χ0, sites; quiet=false)
+function potts3gs(θ, λ, χ0, sites;
+                  ψ0    :: Union{Nothing,MPS} = nothing,
+                  noise :: Bool = false,
+                  quiet :: Bool = false)
     N = length(sites)
+
+    # so I can check the adiabatic deal
+    # if ψ0 != nothing @show ψ0[1] |> inds end
     
     if !quiet @show θ end
 
@@ -104,24 +110,34 @@ function potts3gs(θ, λ, χ0, sites; quiet=false)
     sweeps = Sweeps(200)
     maxdim!(sweeps, 10,20,100,100,200)
     cutoff!(sweeps, 1E-10)
-    noise!(sweeps, 1e-1,1e-2,1e-2,[10.0^(-j) for j in 2:10]...)
-    
-    ψ0 = randomMPS(Complex{Float64}, sites, χ0)
-    E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
-    
-    ψ0= randomMPS(Complex{Float64}, sites, χ0)
-    E2, ψ2 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer)
+    if noise noise!(sweeps, 1e-1,1e-2,1e-2,[10.0^(-j) for j in 2:10]...) end
 
-    if abs(E1 - E2) > 1e-6
-        @warn("Energy difference: θ = $θ, $E1 vs $E2")
-    end
+    if ψ0 != nothing
+        E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
+        E2 = 0
+    else #ψ0 == nothing; do it twice
+        ψ0 = randomMPS(Complex{Float64}, sites, χ0)
+        E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
     
-    #may have gs degeneracy
-    #=
-    if abs(1 - abs(ovlp)) > 1e-8
+        ψ0= randomMPS(Complex{Float64}, sites, χ0)
+        E2, ψ2 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer)
+        
+        if abs(E1 - E2) > 1e-6
+            @warn("Energy difference: θ = $θ, $E1 vs $E2")
+        end
+        #may have gs degeneracy
+        #=
+        if abs(1 - abs(ovlp)) > 1e-8
         error("Overlap bad: $θ, $ovlp")
+        end
+        =#
     end
-    =#
+
+    # so I can check the adiabatic deal
+    # @show ψ1[1] |> inds
+    # println("-----")
+    # flush(stdout)
+    
     return E1, E2, observer.energies, ψ1
 end
 
@@ -134,6 +150,8 @@ s = ArgParseSettings()
     "--lambda",   default => "0.0"
     "--chi0",     default => "1"
     "--jobname",  default => "M"
+    "--noise",    action  => :store_true
+    "--adiabatic", action  => :store_true
     "--outdir"
     "--subdate"
 end
@@ -143,7 +161,9 @@ dθ = parse(Float64, opts["dtheta"])
 λ  = parse(Float64, opts["lambda"])
 L  = parse(Int64, opts["length"])
 χ0 = parse(Int64, opts["chi0"])
-jobname = opts["jobname"]
+jobname   = opts["jobname"]
+noise     = opts["noise"]
+adiabatic = opts["adiabatic"]
 
 θmin = parse(Float64, opts["thetamin"])
 θmax = parse(Float64, opts["thetamax"])
@@ -154,13 +174,29 @@ subdate = opts["subdate"]
 itensors_dir = ENV["ITENSORSJL_DIR"]
 
 dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi0$χ0"
+if noise     dir = "$dir-noise$noise" end
+if adiabatic dir = "$dir-adiabatic$adiabatic" end
+
 mkpath(dir)
 
 θs = (θmin:dθ:θmax) * π/4
+if adiabatic θs = cat(θs, reverse(θs[1:end-1]), dims=1) end
 @show L, θs, λ
 sites = pottsSites(L)
 serialize("$(dir)/sites.p", sites)
-@showprogress for (jθ, θ) in enumerate(θs)
-    E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true)
+
+ψ = randomMPS(sites)
+
+#@showprogress
+
+for (jθ, θ) in enumerate(θs)
+    global ψ
+    ψ :: MPS
+    if adiabatic
+        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, ψ0 = ψ)
+    else
+        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, ψ0 = nothing)
+    end
     serialize("$(dir)/$(jθ).p", (θ,E1,E2,energies,ψ))
+    flush(stdout)
 end
