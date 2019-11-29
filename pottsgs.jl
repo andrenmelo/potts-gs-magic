@@ -195,6 +195,6 @@ serialize("$(dir)/sites.p", sites)
     else
         E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, ψ0 = nothing)
     end
-    serialize("$(dir)/$(jθ).p", (θ,E1,E2,energies,ψ))
+    serialize("$(dir)/$(lpad(jθ,4,'0')).p", (θ,E1,E2,energies,ψ))
     flush(stdout)
 end
