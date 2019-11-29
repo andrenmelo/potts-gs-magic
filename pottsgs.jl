@@ -187,9 +187,7 @@ serialize("$(dir)/sites.p", sites)
 
 ψ = randomMPS(sites)
 
-#@showprogress
-
-for (jθ, θ) in enumerate(θs)
+@showprogress for (jθ, θ) in enumerate(θs)
     global ψ
     ψ :: MPS
     if adiabatic
