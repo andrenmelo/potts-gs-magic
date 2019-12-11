@@ -1,0 +1,316 @@
+using ProgressMeter
+using ITensors
+using Test
+using LinearAlgebra
+using Serialization
+using Statistics
+using DataFrames
+
+
+git_commit() = String(read(pipeline(`git log`, `head -1`, `cut -d ' ' -f 2`, `cut -b 1-7`))[1:end-1])
+git_commit(path :: String) = cd(git_commit, path)
+
+postprocess_commit = git_commit(@__DIR__())
+itensors_dir = ENV["ITENSORSJL_DIR"]
+postprocess_itensor_commit = git_commit(itensors_dir)
+
+lg(x) = log(x)/log(2)
+arr1d(a :: Array) = reshape(a, length(a))
+
+function vectorspace(Lst :: Array{T}) where T
+    sz = size(Lst[1])
+    lngth = length(Lst[1])
+    N = length(Lst)
+    
+    @assert [sz == size(A) for A in Lst] |> all
+    
+    lst = [reshape(A, lngth) for A in Lst]
+    C = cat(lst..., dims=1)
+    reshape(C, (sz..., N))
+    return C
+end
+
+vectorspace(Lst :: Array{<:ITensor}) = vectorspace(Lst, "Vspc" )
+function vectorspace(Lst :: Array{<:ITensor}, tags... ) :: ITensor
+    is = inds(Lst[1])
+    @assert([inds(A) == is for A in Lst] |> all)
+    V = vectorspace(array.(Lst))
+   
+    inew = Index(length(Lst))
+    for t in tags
+        inew = addtags(inew, t)
+    end
+    ITensor(V, is..., inew)
+end
+
+@testset "vectorspace" begin
+    i1 = Index(4)
+    i2 = Index(4)
+
+    A = randomITensor(i1, i2)
+    B = randomITensor(i1,i2)
+    
+    V = vectorspace([A,B])
+    
+    @test size(V) == (4,4,2)
+end 
+
+function measure(M :: MPS, sites :: Array{Index,1}, qs)
+    N = length(M)
+    @assert length(sites) == N
+    orthogonalize!(M, N)
+
+    d = Dict([q.smb => zeros(q.tp, N) for q in qs])
+    d = convert(Dict{Symbol, Any}, d)
+    #bond labeled by site to its left
+    d[:s] = Array{Array{Float64,1}}(undef, N-1)
+
+    for j in reverse(2:N)
+        rinds = uniqueinds(M[j],M[j-1])
+
+        #at this point the orthogonality center lives on site j
+        A = M[j] 
+        Adag = prime(A, "Site") |> dag
+        [d[q.smb][j] = A * op(sites[j], string(q.smb)) * Adag |> scalar for q in qs]
+
+        U,S,V = svd(M[j],rinds)
+        M[j] = U
+        M[j-1] *= (S*V)
+        ITensors.setRightLim!(M,j)
+
+        # measurements
+        s = S |> array
+        d[:s][j-1] = s[CartesianIndex.(axes(s)...)]
+    end
+    d[:χ] = [length(s) for s in d[:s]]
+    d[:SvN] = [-sum(s .* lg.(s)) for s in d[:s]]
+    return d
+end
+
+import ITensors.op
+
+function pottsSites(N :: Int; q :: Int = 3)
+  return [Index(q, "Site,Potts,n=$n") for n = 1:N]
+end
+
+const PottsSite = makeTagType("Potts")
+
+# 1-index my Potts states
+# so diagonal elements of Z are
+#    e^{2πi/q}
+#    e^{2πi*2/q}
+#    e^{2πi*3/q}
+#    e^{2πi*(q-1)/q}
+#    e^{2πi*q/q} = 1
+# this seems like the least bad thing
+function state(::PottsSite,
+               st::AbstractString)
+  return parse(Int64, st)
+end
+
+function op(::PottsSite,
+            s :: Index,
+            opname :: AbstractString)::ITensor
+  sP = prime(s)
+  q = dim(s)
+
+  Op = ITensor(Complex{Float64},dag(s), s')
+
+  if opname == "Z"
+    for j in 1:q
+      Op[j,j] = exp(2*π*im*j/q)
+    end
+  elseif opname == "ZH"
+    for j in 1:q
+      Op[j,j] = exp(-2*π*im*j/q)
+    end
+  elseif opname == "X"
+    for j in 1:q
+      Op[(j % q) + 1,j] = 1
+    end
+  elseif opname == "XH"
+    for j in 1:q
+      Op[j,(j % q) + 1] = 1
+    end
+  elseif opname == "X+XH"
+    for j in 1:q
+      Op[j,(j % q) + 1] = 1
+      Op[(j % q) + 1,j] = 1
+    end
+  else
+    throw(ArgumentError("Operator name '$opname' not recognized for PottsSite"))
+  end
+  return Op
+end    
+
+
+q = 3
+X = zeros(q,q)
+for j in 1:q
+    X[(j % q) + 1, j] = 1
+end
+Z = Diagonal([exp(2*π*im*j/q) for j in 1:q])
+ω = exp(2*π*im/q)
+T(a1, a2) = (exp((4)*π*im/3))^(-a1*a2) * Z^a1 * X^a2
+A0 = zeros(Complex{Float64}, (3,3))
+for a1 in 1:q, a2 in 1:q
+   global A0 += T(a1, a2)
+end 
+A0 *= 1/3
+
+function Aμ(a1, a2)
+    Ta = T(a1, a2)
+    return Ta' * A0 * Ta
+end
+
+wigner(a1, a2, i :: Index) =  ITensor(Aμ(a1,a2), i, i')
+
+# this is a disaster
+# not even close to encapsulated
+function wigner_bchg(i :: Index, q)
+    wigners =  [wigner(a1,a2,i) for a1 in 0:q-1, a2 in 0:q-1]
+    return vectorspace(reshape(wigners, length(wigners)), "Site", "Vspc")
+end
+
+
+function mana(sites, ψ, jl, jr)
+    orthogonalize!(ψ, jl)
+    GC.gc()
+    il = setdiff(findinds(ψ[jl], "Link"), commoninds(ψ[jl], ψ[jl+1]))[1]
+    ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
+    Lenv = delta(il,il')
+    Renv = delta(ir,ir')
+    jmid = (jl + jr)/2 |> floor |> Int
+    for j = jl:jmid
+        Lenv *=  ψ[j]
+        Lenv *= ((ψ[j] |> prime |> dag) * wigner_bchg(sites[j],3)* (1/3))
+    end
+    for j = jr:-1:(jmid + 1)
+        Renv *=  ψ[j]
+        Renv *= ((ψ[j] |> prime |> dag) * wigner_bchg(sites[j],3)* (1/3))
+    end
+    W = Lenv *Renv |> array
+   
+    @assert abs(sum(W) - 1) ≤ 1e-9
+    W .|> abs |> sum |> log
+end
+
+
+function middlesection(N, l)
+    j = N/2 |> floor |> Int
+    jl = j - (l/2 |> floor |> Int)
+    jr = j + (l/2 |> ceil |> Int) - 1
+    @show jl, j, jr, 
+    return (jl, jr)
+end
+
+
+function unitvector(ind :: Index, j :: Int)
+    e = ITensor(0, ind)
+    e[ind[j]] = 1
+    return e
+end
+ind = Index(3)
+
+import ITensors
+
+MPS(v :: Vector{<:ITensor}) = MPS(length(v), v)
+MPO(v :: Vector{<:ITensor}) = MPO(length(v), v)
+
+
+function measure(M :: MPS, sites :: Array{Index,1}, qs)
+    N = length(M)
+    @assert length(sites) == N
+    orthogonalize!(M, N)
+
+    d = Dict([q.smb => zeros(q.tp, N) for q in qs])
+    d = convert(Dict{Symbol, Any}, d)
+    #bond labeled by site to its left
+    d[:s] = Array{Array{Float64,1}}(undef, N-1)
+
+    for j in reverse(2:N)
+        rinds = uniqueinds(M[j],M[j-1])
+
+        #at this point the orthogonality center lives on site j
+        A = M[j] 
+        Adag = prime(A, "Site") |> dag
+        [d[q.smb][j] = A * op(sites[j], string(q.smb)) * Adag |> scalar for q in qs]
+
+        U,S,V = svd(M[j],rinds)
+        M[j] = U
+        M[j-1] *= (S*V)
+        ITensors.setRightLim!(M,j)
+
+        # measurements
+        s = S |> array
+        d[:s][j-1] = s[CartesianIndex.(axes(s)...)]
+    end
+    d[:χ] = [length(s) for s in d[:s]]
+    d[:SvN] = [-sum(s .* lg.(s)) for s in d[:s]]
+    return d
+end 
+
+dir = abspath(ARGS[1])
+
+ls = 2:7
+
+#fns = readdir(dir)[1:end-1]
+fns = readdir(dir)[end-5:end-1]
+Nθ = length(fns)
+
+trueNθ = 201 #temporary hack
+
+θs     = Array{Float64}(undef, Nθ) 
+direction = Array{Symbol}(undef, Nθ)
+SvNmax = Array{Float64}(undef, Nθ)
+E2s = Array{Float64}(undef, Nθ)
+E1s = Array{Float64}(undef, Nθ)
+mn     = Array{Float64}(undef, (Nθ, length(ls)))
+chimax = Array{Int64}(undef, Nθ)
+measX  = Array{Complex{Float64}}(undef, Nθ)
+measZ  = Array{Complex{Float64}}(undef, Nθ)
+
+qs = [(smb = :X,    tp = Complex{Float64}),
+      (smb = :XH,   tp = Complex{Float64}),
+      (smb = :Z,    tp = Complex{Float64}),
+      (smb = :ZH,   tp = Complex{Float64})]
+
+@showprogress for (jθ, fn) in enumerate(fns)
+   (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
+    θs[jθ] = θ
+    sites = siteinds(ψ)
+    L = length(sites)
+    d = measure(ψ, sites, qs)
+    measX[jθ] = mean(d[:X]) + mean(d[:XH])
+    measZ[jθ] = mean(d[:Z]) + mean(d[:ZH])
+    E1s[jθ]   = E1
+    E2s[jθ]   = E2
+    SvNmax[jθ] = maximum(d[:SvN])
+
+    chimax[jθ] = maximum(d[:χ])
+    flush(stdout)
+    #=
+    for (jl, l) in enumerate(ls)
+        mn[jθ,jl]  = mana(sites, ψ, middlesection(L,l)...)
+    end
+=#
+    GC.gc()
+end
+
+df = DataFrame(
+    Dict([:θ => arr1d(θs),
+          :E      => arr1d(E1s),
+          :SvNmax => arr1d(SvNmax),
+          :chimax => arr1d(chimax),
+          :measZ  => arr1d(measZ),
+          :direction => arr1d(direction),
+          ]));
+
+mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$k") => mn[:,k] for k in 1:size(mn,2)]])
+
+fn = "$dir/postprocessed.p"
+serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
+f = open(ENV["MAGIC_POSTPROCESSED"], "a")
+println(f, fn)
+close(f)
+
