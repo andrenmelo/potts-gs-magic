@@ -43,18 +43,6 @@ function vectorspace(Lst :: Array{<:ITensor}, tags... ) :: ITensor
     ITensor(V, is..., inew)
 end
 
-@testset "vectorspace" begin
-    i1 = Index(4)
-    i2 = Index(4)
-
-    A = randomITensor(i1, i2)
-    B = randomITensor(i1,i2)
-    
-    V = vectorspace([A,B])
-    
-    @test size(V) == (4,4,2)
-end 
-
 function measure(M :: MPS, sites :: Array{Index,1}, qs)
     N = length(M)
     @assert length(sites) == N
