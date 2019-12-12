@@ -257,7 +257,7 @@ dir = abspath(ARGS[1])
 ls = 2:7
 
 #fns = readdir(dir)[1:end-1]
-fns = readdir(dir)[end-5:end-1]
+fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
 Nθ = length(fns)
 
 trueNθ = 201 #temporary hack
