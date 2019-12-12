@@ -172,7 +172,7 @@ function mana(sites, ψ, jl, jr)
         Lenv = delta(il,il')
     end
 
-    if jR >= length(sites)
+    if jr >= length(sites)
         Renv = ITensor(1)
     else
         ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
