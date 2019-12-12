@@ -291,11 +291,9 @@ qs = [(smb = :X,    tp = Complex{Float64}),
 
     chimax[jθ] = maximum(d[:χ])
     flush(stdout)
-    #=
     for (jl, l) in enumerate(ls)
         mn[jθ,jl]  = mana(sites, ψ, middlesection(L,l)...)
     end
-=#
     GC.gc()
 end
 
