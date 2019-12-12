@@ -176,10 +176,21 @@ end
 function mana(sites, ψ, jl, jr)
     orthogonalize!(ψ, jl)
     GC.gc()
-    il = setdiff(findinds(ψ[jl], "Link"), commoninds(ψ[jl], ψ[jl+1]))[1]
-    ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
-    Lenv = delta(il,il')
-    Renv = delta(ir,ir')
+    
+    if jl <= 1
+        Lenv = ITensor(1)
+    else
+        il = setdiff(findinds(ψ[jl], "Link"), commoninds(ψ[jl], ψ[jl+1]))[1]
+        Lenv = delta(il,il')
+    end
+
+    if jR >= length(sites)
+        Renv = ITensor(1)
+    else
+        ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
+        Renv = delta(ir,ir')
+    end
+    
     jmid = (jl + jr)/2 |> floor |> Int
     for j = jl:jmid
         Lenv *=  ψ[j]
@@ -200,7 +211,10 @@ function middlesection(N, l)
     j = N/2 |> floor |> Int
     jl = j - (l/2 |> floor |> Int)
     jr = j + (l/2 |> ceil |> Int) - 1
-    @show jl, j, jr, 
+
+    if jl < 1 jl = 1 end
+    if jr > N jr = N end
+    
     return (jl, jr)
 end
 
