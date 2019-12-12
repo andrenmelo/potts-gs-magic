@@ -278,7 +278,12 @@ qs = [(smb = :X,    tp = Complex{Float64}),
       (smb = :ZH,   tp = Complex{Float64})]
 
 @showprogress for (jθ, fn) in enumerate(fns)
-   (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
+    if jθ < (trueNθ/2 + 1)
+        direction[jθ] = :fromdisordered
+    else
+        direction[jθ] = :fromordered
+    end
+    (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
     θs[jθ] = θ
     sites = siteinds(ψ)
     L = length(sites)
