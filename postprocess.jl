@@ -271,6 +271,7 @@ mn     = Array{Float64}(undef, (Nθ, length(ls)))
 chimax = Array{Int64}(undef, Nθ)
 measX  = Array{Complex{Float64}}(undef, Nθ)
 measZ  = Array{Complex{Float64}}(undef, Nθ)
+Ls     = Array{Int64}(undef, Nθ)
 
 qs = [(smb = :X,    tp = Complex{Float64}),
       (smb = :XH,   tp = Complex{Float64}),
@@ -309,6 +310,7 @@ df = DataFrame(
           :chimax => arr1d(chimax),
           :measZ  => arr1d(measZ),
           :direction => arr1d(direction),
+          :L      => Ls, #kinda stupid
           ]));
 
 mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$k") => mn[:,k] for k in 1:size(mn,2)]])
