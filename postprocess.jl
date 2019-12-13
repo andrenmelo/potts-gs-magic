@@ -260,7 +260,7 @@ ls = 2:7
 fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
 Nθ = length(fns)
 
-trueNθ = 201 #temporary hack
+trueNθ = Nθ
 
 θs     = Array{Float64}(undef, Nθ) 
 direction = Array{Symbol}(undef, Nθ)
