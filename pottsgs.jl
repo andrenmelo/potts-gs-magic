@@ -110,7 +110,7 @@ function potts3gs(θ, λ, χ0, sites;
     sweeps = Sweeps(200)
     maxdim!(sweeps, 10,20,100,100,200)
     cutoff!(sweeps, 1E-10)
-    if noise noise!(sweeps, 1e-1,1e-2,1e-2,[10.0^(-j) for j in 2:10]...) end
+    if noise noise!(sweeps, [2^(-j) for j in 2:50]...) end
 
     if ψ0 != nothing
         E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
