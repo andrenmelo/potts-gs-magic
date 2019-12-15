@@ -81,7 +81,7 @@ end
 function potts3gs(θ, λ, χ0, sites;
                   ψ0    :: Union{Nothing,MPS} = nothing,
                   noise :: Bool = false,
-                  long  :: Bool = false
+                  long  :: Bool = false,
                   quiet :: Bool = false)
     N = length(sites)
 
