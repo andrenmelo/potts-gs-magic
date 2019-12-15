@@ -81,6 +81,7 @@ end
 function potts3gs(θ, λ, χ0, sites;
                   ψ0    :: Union{Nothing,MPS} = nothing,
                   noise :: Bool = false,
+                  long  :: Bool = false
                   quiet :: Bool = false)
     N = length(sites)
 
@@ -104,8 +105,11 @@ function potts3gs(θ, λ, χ0, sites;
 
     H = toMPO(ampo, sites);
     
-    #observer = DMRGObserver(Array{String}(undef,0), sites, 1e-10)
-    observer = DMRGObserver(Array{String}(undef,0), sites)
+    if long
+        observer = DMRGObserver(Array{String}(undef,0), sites)
+    else
+        observer = DMRGObserver(Array{String}(undef,0), sites, 1e-10)
+    end
     
     sweeps = Sweeps(400)
     maxdim!(sweeps, 10,20,100,100,200)
@@ -152,6 +156,7 @@ s = ArgParseSettings()
     "--jobname",  default => "M"
     "--noise",    action  => :store_true
     "--adiabatic", action  => :store_true
+    "--long",     action  => :store_true
     "--outdir"
     "--subdate"
 end
@@ -164,6 +169,7 @@ L  = parse(Int64, opts["length"])
 jobname   = opts["jobname"]
 noise     = opts["noise"]
 adiabatic = opts["adiabatic"]
+long      = opts["long"]
 
 θmin = parse(Float64, opts["thetamin"])
 θmax = parse(Float64, opts["thetamax"])
@@ -191,9 +197,9 @@ serialize("$(dir)/sites.p", sites)
     global ψ
     ψ :: MPS
     if adiabatic
-        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, ψ0 = ψ)
+        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, long=long, ψ0 = ψ)
     else
-        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, ψ0 = nothing)
+        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, long=long, ψ0 = nothing)
     end
     serialize("$(dir)/$(lpad(jθ,4,'0')).p", (θ,E1,E2,energies,ψ))
     flush(stdout)
