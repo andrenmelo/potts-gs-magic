@@ -252,74 +252,74 @@ function measure(M :: MPS, sites :: Array{Index,1}, qs)
     return d
 end 
 
-dir = abspath(ARGS[1])
+for dir = abspath.(ARGS)
 
-ls = 2:7
+    ls = 2:7
 
-#fns = readdir(dir)[1:end-1]
-fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
-Nθ = length(fns)
+    #fns = readdir(dir)[1:end-1]
+    fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
+    Nθ = length(fns)
 
-trueNθ = Nθ
+    trueNθ = Nθ
 
-θs     = Array{Float64}(undef, Nθ) 
-direction = Array{Symbol}(undef, Nθ)
-SvNmax = Array{Float64}(undef, Nθ)
-E2s = Array{Float64}(undef, Nθ)
-E1s = Array{Float64}(undef, Nθ)
-mn     = Array{Float64}(undef, (Nθ, length(ls)))
-chimax = Array{Int64}(undef, Nθ)
-measX  = Array{Complex{Float64}}(undef, Nθ)
-measZ  = Array{Complex{Float64}}(undef, Nθ)
-Ls     = Array{Int64}(undef, Nθ)
+    θs     = Array{Float64}(undef, Nθ) 
+    direction = Array{Symbol}(undef, Nθ)
+    SvNmax = Array{Float64}(undef, Nθ)
+    E2s = Array{Float64}(undef, Nθ)
+    E1s = Array{Float64}(undef, Nθ)
+    mn     = Array{Float64}(undef, (Nθ, length(ls)))
+    chimax = Array{Int64}(undef, Nθ)
+    measX  = Array{Complex{Float64}}(undef, Nθ)
+    measZ  = Array{Complex{Float64}}(undef, Nθ)
+    Ls     = Array{Int64}(undef, Nθ)
 
-qs = [(smb = :X,    tp = Complex{Float64}),
-      (smb = :XH,   tp = Complex{Float64}),
-      (smb = :Z,    tp = Complex{Float64}),
-      (smb = :ZH,   tp = Complex{Float64})]
+    qs = [(smb = :X,    tp = Complex{Float64}),
+          (smb = :XH,   tp = Complex{Float64}),
+          (smb = :Z,    tp = Complex{Float64}),
+          (smb = :ZH,   tp = Complex{Float64})]
 
-@showprogress for (jθ, fn) in enumerate(fns)
-    if jθ < (trueNθ/2 + 1)
-        direction[jθ] = :fromdisordered
-    else
-        direction[jθ] = :fromordered
-    end
-    (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
-    θs[jθ] = θ
-    sites = siteinds(ψ)
-    L = length(sites)
-    d = measure(ψ, sites, qs)
-    measX[jθ] = mean(d[:X]) + mean(d[:XH])
-    measZ[jθ] = mean(d[:Z]) + mean(d[:ZH])
-    E1s[jθ]   = E1
-    E2s[jθ]   = E2
-    SvNmax[jθ] = maximum(d[:SvN])
+    @showprogress for (jθ, fn) in enumerate(fns)
+        if jθ < (trueNθ/2 + 1)
+            direction[jθ] = :fromdisordered
+        else
+            direction[jθ] = :fromordered
+        end
+        (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
+        θs[jθ] = θ
+        sites = siteinds(ψ)
+        L = length(sites)
+        d = measure(ψ, sites, qs)
+        measX[jθ] = mean(d[:X]) + mean(d[:XH])
+        measZ[jθ] = mean(d[:Z]) + mean(d[:ZH])
+        E1s[jθ]   = E1
+        E2s[jθ]   = E2
+        SvNmax[jθ] = maximum(d[:SvN])
 
-    chimax[jθ] = maximum(d[:χ])
-    flush(stdout)
-    #=
-    for (jl, l) in enumerate(ls)
+        chimax[jθ] = maximum(d[:χ])
+        flush(stdout)
+        #=
+        for (jl, l) in enumerate(ls)
         mn[jθ,jl]  = mana(sites, ψ, middlesection(L,l)...)
+        end
+        =#
+        GC.gc()
     end
-    =#
-    GC.gc()
+
+    df = DataFrame(
+        Dict([:θ => arr1d(θs),
+              :E      => arr1d(E1s),
+              :SvNmax => arr1d(SvNmax),
+              :chimax => arr1d(chimax),
+              :measZ  => arr1d(measZ),
+              :direction => arr1d(direction),
+              :L      => Ls, #kinda stupid
+              ]));
+
+    mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$k") => mn[:,k] for k in 1:size(mn,2)]])
+
+    fn = "$dir/postprocessed.p"
+    serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
+    f = open(ENV["MAGIC_POSTPROCESSED"], "a")
+    println(f, fn)
+    close(f)
 end
-
-df = DataFrame(
-    Dict([:θ => arr1d(θs),
-          :E      => arr1d(E1s),
-          :SvNmax => arr1d(SvNmax),
-          :chimax => arr1d(chimax),
-          :measZ  => arr1d(measZ),
-          :direction => arr1d(direction),
-          :L      => Ls, #kinda stupid
-          ]));
-
-mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$k") => mn[:,k] for k in 1:size(mn,2)]])
-
-fn = "$dir/postprocessed.p"
-serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
-f = open(ENV["MAGIC_POSTPROCESSED"], "a")
-println(f, fn)
-close(f)
-
