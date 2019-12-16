@@ -253,6 +253,7 @@ function measure(M :: MPS, sites :: Array{Index,1}, qs)
 end 
 
 for dir = abspath.(ARGS)
+    @show dir
 
     ls = 2:7
 
