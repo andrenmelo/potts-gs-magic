@@ -314,7 +314,7 @@ for dir = abspath.(ARGS)
               :L      => Ls, #kinda stupid
               ]));
 
-    mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$k") => mn[:,k] for k in 1:size(mn,2)]])
+    mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$jl") => mn[:,jl] for jl, l in enumerate(ls)]])
 
     fn = "$dir/postprocessed.p"
     serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
