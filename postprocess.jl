@@ -298,7 +298,7 @@ for dir = abspath.(ARGS)
 
         chimax[jθ] = maximum(d[:χ])
         flush(stdout)
-        for (jl, l) in enumerate(ls)
+        for (jl, l) in (ls |> reverse |> enumerate)
             mn[jθ,jl]  = mana(sites, ψ, middlesection(L,l)...)
         end
         GC.gc()
