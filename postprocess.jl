@@ -161,7 +161,8 @@ function wigner_bchg(i :: Index, q)
 end
 
 
-function mana(sites, ψ, jl, jr)
+
+function rdm(sites, ψ, jl :: Int, jr :: Int)
     orthogonalize!(ψ, jl)
     GC.gc()
     
@@ -180,21 +181,75 @@ function mana(sites, ψ, jl, jr)
     end
     
     jmid = (jl + jr)/2 |> floor |> Int
+   
     for j = jl:jmid
         Lenv *=  ψ[j]
-        Lenv *= ((ψ[j] |> prime |> dag) * wigner_bchg(sites[j],3)* (1/3))
+        Lenv *= (ψ[j] |> prime |> dag) 
     end
     for j = jr:-1:(jmid + 1)
         Renv *=  ψ[j]
-        Renv *= ((ψ[j] |> prime |> dag) * wigner_bchg(sites[j],3)* (1/3))
+        Renv *= (ψ[j] |> prime |> dag) 
     end
-    W = Lenv *Renv |> array
-   
-    @assert abs(sum(W) - 1) ≤ 1e-9
-    W .|> abs |> sum |> log
+     ρ = Lenv * Renv
+    
+    return ρ
 end
 
+function symmetrize(sites, ρ :: ITensor, jl :: Int, jr :: Int)
+    ρsym = ρ
+    prodX = ITensor(1)
+    prodX0 = ITensor(1)
 
+    for j = jl:jr
+        prodX0 *= delta(sites[j], sites[j]')
+        prodX  *= op(sites[j], "X")
+    end
+
+    prodX2 = prodX * prime(prodX)
+    prodX2 = mapprime(prodX2, 2, 1)
+
+    shift = (prodX0 + prodX + prodX2)
+   
+    ρsym *= prime(shift)
+    ρsym = mapprime(ρsym,0,1)
+    ρsym *= dag(shift) 
+    ρsym = mapprime(ρsym, 2, 1)
+    
+
+    trρsym = ρsym
+    for j = jl:jr
+        trρsym *= delta(sites[j], sites[j]')
+    end
+
+    ρsym /= scalar(trρsym)
+    return ρsym
+end
+
+function apply_wigner_bchg(sites, ρ :: ITensor, jl :: Int, jr :: Int)
+    for j in jl:jr
+        flush(stdout)
+        ρ    *=  wigner_bchg(sites[j],3)* (1/3)
+    end
+    return ρ 
+end
+
+#assumes already in wigner basis
+function mana(ρ :: ITensor)
+    W = array(ρ)
+    @assert abs(sum(W) - 1) ≤ 1e-9
+    return W .|> abs |> sum |> log
+end
+
+function mana(sites, ψ :: MPS, jl :: Int, jr :: Int)
+    ρ = rdm(sites, ψ, jl, jr)
+    flush(stdout)
+    ρsym = symmetrize(sites, ρ, jl, jr)
+    ρ    = apply_wigner_bchg(sites, ρ,    jl, jr) 
+    ρsym = apply_wigner_bchg(sites, ρsym, jl, jr) 
+    m = mana(ρ)
+    msym = mana(ρ)
+    return m, msym
+end
 function middlesection(N, l)
     j = N/2 |> floor |> Int
     jl = j - (l/2 |> floor |> Int)
@@ -255,7 +310,7 @@ end
 for dir = abspath.(ARGS)
     @show dir
 
-    ls = 2:7
+    ls = (1:7) |> reverse
 
     #fns = readdir(dir)[1:end-1]
     fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
@@ -269,6 +324,7 @@ for dir = abspath.(ARGS)
     E2s = Array{Float64}(undef, Nθ)
     E1s = Array{Float64}(undef, Nθ)
     mn     = Array{Float64}(undef, (Nθ, length(ls)))
+    sym_mn = Array{Float64}(undef, (Nθ, length(ls)))
     chimax = Array{Int64}(undef, Nθ)
     measX  = Array{Complex{Float64}}(undef, Nθ)
     measZ  = Array{Complex{Float64}}(undef, Nθ)
@@ -298,8 +354,8 @@ for dir = abspath.(ARGS)
 
         chimax[jθ] = maximum(d[:χ])
         flush(stdout)
-        for (jl, l) in (ls |> reverse |> enumerate)
-            mn[jθ,jl]  = mana(sites, ψ, middlesection(L,l)...)
+        for (jl, l) in (ls |> enumerate)
+            mn[jθ,jl], sym_mn[jθ,jl] = mana(sites, ψ, middlesection(L,l)...)
         end
         GC.gc()
     end
@@ -314,7 +370,10 @@ for dir = abspath.(ARGS)
               :L      => Ls, #kinda stupid
               ]));
 
-    mn_df = DataFrame([[:θ=>arr1d(θs)];  [Symbol("mn$jl") => mn[:,jl] for jl, l in enumerate(ls)]])
+    mn_df = DataFrame([[:θ=>arr1d(θs)];
+                       [Symbol("mn$l")  =>     mn[:,jl] for jl, l in enumerate(ls)];
+                       [Symbol("smn$l") => sym_mn[:,jl] for jl, l in enumerate(ls)]
+                       ])
 
     fn = "$dir/postprocessed.p"
     serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
