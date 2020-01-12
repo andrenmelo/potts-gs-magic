@@ -195,34 +195,32 @@ function rdm(sites, ψ, jl :: Int, jr :: Int)
     return ρ
 end
 
-function symmetrize(sites, ρ :: ITensor, jl :: Int, jr :: Int)
-    ρsym = ρ
-    prodX = ITensor(1)
-    prodX0 = ITensor(1)
+function symmetrizer(sites)
+    N = length(sites)
+    I  = MPO(sites, Vector{String}(["Id"   for j in 1:N]))
+    X  = MPO(sites, Vector{String}(["X"    for j in 1:N]))
+    X2 = MPO(sites, Vector{String}(["XH" for j in 1:N]))
+    sym = sum(I,X)
+    sym = sum(sym, X2)
+    sym[1] *= (1.0 / sqrt(3) )
+    return sym
+end
 
-    for j = jl:jr
-        prodX0 *= delta(sites[j], sites[j]')
-        prodX  *= op(sites[j], "X")
-    end
+#builtin is somehow pathological: out of memory error
+function cdw_applyMPO(A :: MPO, ψ :: MPS)
+    φA = [mapprime(ψ[j] * A[j], 1, 0) for j in 1:length(ψ)]
+    φ = MPS(length(ψ), φA)    
+    return φ
+end
 
-    prodX2 = prodX * prime(prodX)
-    prodX2 = mapprime(prodX2, 2, 1)
-
-    shift = (prodX0 + prodX + prodX2)
-   
-    ρsym *= prime(shift)
-    ρsym = mapprime(ρsym,0,1)
-    ρsym *= dag(shift) 
-    ρsym = mapprime(ρsym, 2, 1)
+function symmetrize(symmetrizer, ψ :: MPS)
+    N = length(ψ)
+    ψsym = cdw_applyMPO(sym, ψ)
+    orthogonalize!(ψsym, 1)
     
-
-    trρsym = ρsym
-    for j = jl:jr
-        trρsym *= delta(sites[j], sites[j]')
-    end
-
-    ρsym /= scalar(trρsym)
-    return ρsym
+    ψsym[N] /= sqrt(inner(ψsym, ψsym))#setindex! sets llim and rlim appropriately
+    orthogonalize!(ψsym, 1)
+    return ψsym
 end
 
 function apply_wigner_bchg(sites, ρ :: ITensor, jl :: Int, jr :: Int)
@@ -243,12 +241,9 @@ end
 function mana(sites, ψ :: MPS, jl :: Int, jr :: Int)
     ρ = rdm(sites, ψ, jl, jr)
     flush(stdout)
-    ρsym = symmetrize(sites, ρ, jl, jr)
     ρ    = apply_wigner_bchg(sites, ρ,    jl, jr) 
-    ρsym = apply_wigner_bchg(sites, ρsym, jl, jr) 
     m = mana(ρ)
-    msym = mana(ρ)
-    return m, msym
+    return m
 end
 function middlesection(N, l)
     j = N/2 |> floor |> Int
@@ -335,6 +330,8 @@ for dir = abspath.(ARGS)
           (smb = :Z,    tp = Complex{Float64}),
           (smb = :ZH,   tp = Complex{Float64})]
 
+    sites = deserialize("dir/sites.p")
+    sym = symmetrizer(sites)
     @showprogress for (jθ, fn) in enumerate(fns)
         if jθ < (trueNθ/2 + 1)
             direction[jθ] = :fromdisordered
@@ -343,7 +340,6 @@ for dir = abspath.(ARGS)
         end
         (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
         θs[jθ] = θ
-        sites = siteinds(ψ)
         L = length(sites)
         d = measure(ψ, sites, qs)
         measX[jθ] = mean(d[:X]) + mean(d[:XH])
@@ -354,8 +350,10 @@ for dir = abspath.(ARGS)
 
         chimax[jθ] = maximum(d[:χ])
         flush(stdout)
+        ψsym = symmetrize(symmetrizer, ψ)
         for (jl, l) in (ls |> enumerate)
-            mn[jθ,jl], sym_mn[jθ,jl] = mana(sites, ψ, middlesection(L,l)...)
+            mn[jθ,jl]     = mana(sites, ψ,    middlesection(L,l)...)
+            sym_mn[jθ,jl] = mana(sites, ψsym, middlesection(L,l)...)
         end
         GC.gc()
     end
