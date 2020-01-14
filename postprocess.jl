@@ -213,7 +213,7 @@ function cdw_applyMPO(A :: MPO, ψ :: MPS)
     return φ
 end
 
-function symmetrize(symmetrizer, ψ :: MPS)
+function symmetrize(sym, ψ :: MPS)
     N = length(ψ)
     ψsym = cdw_applyMPO(sym, ψ)
     orthogonalize!(ψsym, 1)
@@ -223,8 +223,8 @@ function symmetrize(symmetrizer, ψ :: MPS)
     return ψsym
 end
 
-function apply_wigner_bchg(sites, ρ :: ITensor, jl :: Int, jr :: Int)
-    for j in jl:jr
+function apply_wigner_bchg(sites, ρ :: ITensor)
+    for j in 1:length(sites)
         flush(stdout)
         ρ    *=  wigner_bchg(sites[j],3)* (1/3)
     end
@@ -241,7 +241,7 @@ end
 function mana(sites, ψ :: MPS, jl :: Int, jr :: Int)
     ρ = rdm(sites, ψ, jl, jr)
     flush(stdout)
-    ρ    = apply_wigner_bchg(sites, ρ,    jl, jr) 
+    ρ    = apply_wigner_bchg(sites[jl:jr], ρ)
     m = mana(ρ)
     return m
 end
@@ -361,7 +361,7 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs)
         jmarker = jr
     end
 
-    return(ρs)
+    return(ρs, [sites[[jl, jr]] for jr in jrs])
 end
 
 
@@ -391,13 +391,14 @@ for dir = abspath.(ARGS)
     #fns = readdir(dir)[1:end-1]
     fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
     Nθ = length(fns)
+    θs = Array{Float64}(undef, Nθ)
 
     trueNθ = Nθ
 
 
 
     
-    df = DataFrame([:θ     => θs,
+    df = DataFrame([:θ     => Array{Float64}(undef, Nθ),
                     :L     => Array{Int64}(undef, Nθ),
                     :direction => Array{Symbol}(undef, Nθ),
                     :E2 => Array{Float64}(undef, Nθ),
@@ -406,25 +407,28 @@ for dir = abspath.(ARGS)
                     :measX  => Array{Complex{Float64}}(undef, Nθ),
                     :measZ  => Array{Complex{Float64}}(undef, Nθ),
                     :chimax => Array{Int64}(undef, Nθ),
-                    :stpmn  => Array{Array{Float64,1}}(undef, length(θs)),
-                    :stpS2  => Array{Array{Float64,1}}(undef, length(θs)),
-                    :ZZH    => Array{Array{Complex{Float64},1}}(undef, length(θs))] )
+                    :stpmn  => Array{Array{Float64,1}}(undef, Nθ),
+                    :stpS2  => Array{Array{Float64,1}}(undef, Nθ),
+                    :ZZH    => Array{Array{Complex{Float64},1}}(undef, Nθ)] )
 
     qs = [(smb = :X,    tp = Complex{Float64}),
           (smb = :XH,   tp = Complex{Float64}),
           (smb = :Z,    tp = Complex{Float64}),
           (smb = :ZH,   tp = Complex{Float64})]
 
-    sites = deserialize("dir/sites.p")
+    sites = deserialize("$dir/sites.p")
     sym = symmetrizer(sites)
+    mn     = Array{Float64}(undef, (Nθ, length(ls)))
+    sym_mn = Array{Float64}(undef, (Nθ, length(ls)))
     @showprogress for (jθ, fn) in enumerate(fns)
         if jθ < (trueNθ/2 + 1)
             df[jθ, :direction] = :fromdisordered
         else
             df[jθ, :direction] = :fromordered
         end
-        
+       
         (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
+	θs[jθ] = θ
         L = length(sites)
         d = measure(ψ, sites, qs)
         
@@ -438,7 +442,7 @@ for dir = abspath.(ARGS)
         df[jθ, :chimax] = maximum(d[:χ])
         
         flush(stdout)
-        ψsym = symmetrize(symmetrizer, ψ)
+        ψsym = symmetrize(sym, ψ)
         for (jl, l) in (ls |> enumerate)
             mn[jθ,jl]     = mana(sites, ψ,    middlesection(L,l)...)
             sym_mn[jθ,jl] = mana(sites, ψsym, middlesection(L,l)...)
@@ -447,7 +451,7 @@ for dir = abspath.(ARGS)
 
         #bad hygiene: re-use of this variable jl
         jl = L/4 |> Int
-        jrs = (L/4 + 1) : L
+        jrs = (jl + 1) : L
 
         
         ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs)
@@ -458,16 +462,6 @@ for dir = abspath.(ARGS)
         
         GC.gc()
     end
-
-    df = DataFrame(
-        Dict([:θ => arr1d(θs),
-              :E      => arr1d(E1s),
-              :SvNmax => arr1d(SvNmax),
-              :chimax => arr1d(chimax),
-              :measZ  => arr1d(measZ),
-              :direction => arr1d(direction),
-              :L      => Ls, #kinda stupid
-              ]));
 
     mn_df = DataFrame([[:θ=>arr1d(θs)];
                        [Symbol("mn$l")  =>     mn[:,jl] for (jl, l) in enumerate(ls)];
