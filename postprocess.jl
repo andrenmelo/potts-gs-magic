@@ -190,7 +190,21 @@ function rdm(sites, ψ, jl :: Int, jr :: Int)
         Renv *=  ψ[j]
         Renv *= (ψ[j] |> prime |> dag) 
     end
-     ρ = Lenv * Renv
+    if(length(inds(Lenv)) + length(inds(Renv)) != 4 + 2*(jr - jl + 1))
+        @show jl, jr
+	flush(stdout)
+        println("Lenv")
+        Lenv |> inds .|> println
+	flush(stdout)
+        println("Renv")
+        Renv |> inds .|> println
+	flush(stdout)
+	error()
+    end
+
+    #@show eltype(Lenv)
+    #@show eltype(Renv)
+    ρ = Lenv * Renv
     
     return ρ
 end
