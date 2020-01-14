@@ -191,7 +191,7 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
         Renv *= (ψ[j] |> prime |> dag) * (wigner_bchg(sites[j],3) * (1/3) )
     end
 
-    if(length(inds(Lenv)) + length(inds(Renv)) != 4 + 2*(jr - jl + 1))
+    if(length(inds(Lenv)) + length(inds(Renv)) != 4 + (jr - jl + 1))
         @show jl, jr
 	flush(stdout)
         println("Lenv")
@@ -203,8 +203,6 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
 	error()
     end
 
-    #@show eltype(Lenv)
-    #@show eltype(Renv)
     ρ = Lenv * Renv
     
     return ρ
