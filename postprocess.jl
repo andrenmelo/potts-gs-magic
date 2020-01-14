@@ -459,6 +459,8 @@ for dir = abspath.(ARGS)
         df[jθ, :stpmn] = [twopoint_mana(sts, ρ) for (ρ, sts) in zip(ρs, tpsites)]
         df[jθ, :ZZH]   = [ZZH(sts, ρ)           for (ρ, sts) in zip(ρs, tpsites)]
         df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
+        df[jθ, :jl]    = jl
+        df[jθ, :jrs]   = jrs
         
         GC.gc()
     end
