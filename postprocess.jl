@@ -400,6 +400,8 @@ for dir = abspath.(ARGS)
     
     df = DataFrame([:θ     => Array{Float64}(undef, Nθ),
                     :L     => Array{Int64}(undef, Nθ),
+                    :jl    => Array{Int64}(undef, Nθ),
+                    :jrs   => Array{Array{Int64,1}}(undef, Nθ),
                     :direction => Array{Symbol}(undef, Nθ),
                     :E2 => Array{Float64}(undef, Nθ),
                     :E1 => Array{Float64}(undef, Nθ),
