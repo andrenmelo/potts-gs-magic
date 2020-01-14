@@ -369,8 +369,8 @@ for dir = abspath.(ARGS)
               ]));
 
     mn_df = DataFrame([[:θ=>arr1d(θs)];
-                       [Symbol("mn$l")  =>     mn[:,jl] for jl, l in enumerate(ls)];
-                       [Symbol("smn$l") => sym_mn[:,jl] for jl, l in enumerate(ls)]
+                       [Symbol("mn$l")  =>     mn[:,jl] for (jl, l) in enumerate(ls)];
+                       [Symbol("smn$l") => sym_mn[:,jl] for (jl, l) in enumerate(ls)]
                        ])
 
     fn = "$dir/postprocessed.p"
