@@ -162,7 +162,7 @@ end
 
 
 
-function rdm(sites, ψ, jl :: Int, jr :: Int)
+function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
     orthogonalize!(ψ, jl)
     GC.gc()
     
@@ -184,13 +184,13 @@ function rdm(sites, ψ, jl :: Int, jr :: Int)
    
     for j = jl:jmid
         Lenv *=  ψ[j]
-        Lenv *= (ψ[j] |> prime |> dag) 
+        Lenv *= (ψ[j] |> prime |> dag) * (wigner_bchg(sites[j],3) * (1/3) )
     end
     for j = jr:-1:(jmid + 1)
         Renv *=  ψ[j]
-        Renv *= (ψ[j] |> prime |> dag) 
+        Renv *= (ψ[j] |> prime |> dag) * (wigner_bchg(sites[j],3) * (1/3) )
     end
-     ρ = Lenv * Renv
+    ρ = Lenv * Renv
     
     return ρ
 end
@@ -239,10 +239,9 @@ function mana(ρ :: ITensor)
 end
 
 function mana(sites, ψ :: MPS, jl :: Int, jr :: Int)
-    ρ = rdm(sites, ψ, jl, jr)
+    W = rdm_wigner(sites, ψ, jl, jr)
     flush(stdout)
-    ρ    = apply_wigner_bchg(sites[jl:jr], ρ)
-    m = mana(ρ)
+    m = mana(W)
     return m
 end
 function middlesection(N, l)
