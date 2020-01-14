@@ -300,7 +300,88 @@ function measure(M :: MPS, sites :: Array{Index,1}, qs)
     d[:χ] = [length(s) for s in d[:s]]
     d[:SvN] = [-sum(s .* lg.(s)) for s in d[:s]]
     return d
+end
+
+
+#Multiply Lenv by transfer matrices on sites j1 ... j2 inclusive
+function propagate(Lenv, ψ, j1, j2)
+    #println("enter propogate")
+    #@showinds Lenv
+    for j = j1:j2
+        Lenv *= ψ[j]
+        Lenv *= dag(prime(ψ[j], "Link"))
+        #@showinds Lenv
+    end
+    return Lenv
+end
+
+function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs)
+    
+    jrs = sort(jrs)
+    ρs  = Array{ITensor}(undef, length(jrs))
+    
+    orthogonalize!(ψ, jl)
+   
+    #---
+    # set up the left environment
+    if jl <= 1
+        Lenv = ITensor(1)
+    else
+        il = setdiff(findinds(ψ[jl], "Link"), commoninds(ψ[jl], ψ[jl+1]))[1]
+        Lenv = delta(il,il')
+    end
+
+    Lenv *= ψ[jl]
+    Lenv *= ψ[jl] |> prime |> dag
+    #---
+    # work through the jrs, pulling out an rdm at each
+    jmarker = jl+1
+    ctr = 1
+    for jr in jrs
+        Lenv = propagate(Lenv, ψ, jmarker, jr-1)
+        
+        if jr >= length(sites)
+            Renv = ITensor(1)
+        else
+            ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
+            Renv = delta(ir,ir')
+        end
+        
+        Lenvp = (Lenv * ψ[jr]) * dag(prime(ψ[jr]))
+        #=
+        @showinds Lenv
+        ψjr = ψ[jr]
+        @showinds ψjr
+        @showinds Lenvp
+        @showinds Renv
+        =#
+        ρs[ctr] = Lenvp * Renv
+        
+        ctr += 1
+        jmarker = jr
+    end
+
+    return(ρs)
+end
+
+
+function ZZH(sites, ρ)
+    @assert 2 == length(sites)
+    @assert 2 * length(sites) == ρ |> inds |> length
+    ZZHop = op(sites[1],"Z") * op(sites[2],"ZH") 
+    ZIdop = op(sites[1],"Z") * delta(sites[2], sites[2]')
+    IdZop = delta(sites[1], sites[1]') * op(sites[2],"ZH")
+    return ITensors.scalar( (ρ * ZZHop) - (ρ*ZIdop)*(ρ*IdZop) )
 end 
+
+function twopoint_mana(sites, ρ)
+    ρ = apply_wigner_bchg(sites, ρ)
+    return mana(ρ)
+end
+
+function S2(ρ :: ITensor)
+    return -2*lg(norm(ρ))
+end
 
 for dir = abspath.(ARGS)
     @show dir
@@ -313,17 +394,21 @@ for dir = abspath.(ARGS)
 
     trueNθ = Nθ
 
-    θs     = Array{Float64}(undef, Nθ) 
-    direction = Array{Symbol}(undef, Nθ)
-    SvNmax = Array{Float64}(undef, Nθ)
-    E2s = Array{Float64}(undef, Nθ)
-    E1s = Array{Float64}(undef, Nθ)
-    mn     = Array{Float64}(undef, (Nθ, length(ls)))
-    sym_mn = Array{Float64}(undef, (Nθ, length(ls)))
-    chimax = Array{Int64}(undef, Nθ)
-    measX  = Array{Complex{Float64}}(undef, Nθ)
-    measZ  = Array{Complex{Float64}}(undef, Nθ)
-    Ls     = Array{Int64}(undef, Nθ)
+
+
+    
+    df = DataFrame([:θ     => θs,
+                    :L     => Array{Int64}(undef, Nθ),
+                    :direction => Array{Symbol}(undef, Nθ),
+                    :E2 => Array{Float64}(undef, Nθ),
+                    :E1 => Array{Float64}(undef, Nθ),
+                    :SvNmax => Array{Float64}(undef, Nθ),
+                    :measX  => Array{Complex{Float64}}(undef, Nθ),
+                    :measZ  => Array{Complex{Float64}}(undef, Nθ),
+                    :chimax => Array{Int64}(undef, Nθ),
+                    :stpmn  => Array{Array{Float64,1}}(undef, length(θs)),
+                    :stpS2  => Array{Array{Float64,1}}(undef, length(θs)),
+                    :ZZH    => Array{Array{Complex{Float64},1}}(undef, length(θs))] )
 
     qs = [(smb = :X,    tp = Complex{Float64}),
           (smb = :XH,   tp = Complex{Float64}),
@@ -334,27 +419,43 @@ for dir = abspath.(ARGS)
     sym = symmetrizer(sites)
     @showprogress for (jθ, fn) in enumerate(fns)
         if jθ < (trueNθ/2 + 1)
-            direction[jθ] = :fromdisordered
+            df[jθ, :direction] = :fromdisordered
         else
-            direction[jθ] = :fromordered
+            df[jθ, :direction] = :fromordered
         end
+        
         (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
-        θs[jθ] = θ
         L = length(sites)
         d = measure(ψ, sites, qs)
-        measX[jθ] = mean(d[:X]) + mean(d[:XH])
-        measZ[jθ] = mean(d[:Z]) + mean(d[:ZH])
-        E1s[jθ]   = E1
-        E2s[jθ]   = E2
-        SvNmax[jθ] = maximum(d[:SvN])
-
-        chimax[jθ] = maximum(d[:χ])
+        
+        df[jθ, :L]     = L
+        df[jθ, :θ]     = θ
+        df[jθ, :measX] = mean(d[:X]) + mean(d[:XH])
+        df[jθ, :measZ] = mean(d[:Z]) + mean(d[:ZH])
+        df[jθ, :E1]    = E1
+        df[jθ, :E2]    = E2
+        df[jθ, :SvNmax] = maximum(d[:SvN])
+        df[jθ, :chimax] = maximum(d[:χ])
+        
         flush(stdout)
         ψsym = symmetrize(symmetrizer, ψ)
         for (jl, l) in (ls |> enumerate)
             mn[jθ,jl]     = mana(sites, ψ,    middlesection(L,l)...)
             sym_mn[jθ,jl] = mana(sites, ψsym, middlesection(L,l)...)
         end
+
+
+        #bad hygiene: re-use of this variable jl
+        jl = L/4 |> Int
+        jrs = (L/4 + 1) : L
+
+        
+        ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs)
+        df[jθ, :θ]     = θ
+        df[jθ, :stpmn] = [twopoint_mana(sts, ρ) for (ρ, sts) in zip(ρs, tpsites)]
+        df[jθ, :ZZH]   = [ZZH(sts, ρ)           for (ρ, sts) in zip(ρs, tpsites)]
+        df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
+        
         GC.gc()
     end
 
