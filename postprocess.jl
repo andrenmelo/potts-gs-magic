@@ -160,8 +160,6 @@ function wigner_bchg(i :: Index, q)
     return vectorspace(reshape(wigners, length(wigners)), "Site", "Vspc")
 end
 
-
-
 function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
     orthogonalize!(ψ, jl)
     GC.gc()
@@ -393,9 +391,6 @@ for dir = abspath.(ARGS)
     θs = Array{Float64}(undef, Nθ)
 
     trueNθ = Nθ
-
-
-
     
     df = DataFrame([:θ     => Array{Float64}(undef, Nθ),
                     :L     => Array{Int64}(undef, Nθ),
@@ -431,6 +426,10 @@ for dir = abspath.(ARGS)
         (θ,E1,E2,Es,ψ) = deserialize("$dir/$fn")
 	θs[jθ] = θ
         L = length(sites)
+
+        orthogonalize!(ψ, L)
+        ψ[L] /= ψ[L] |> array |> norm
+
         d = measure(ψ, sites, qs)
         
         df[jθ, :L]     = L
