@@ -466,6 +466,7 @@ for dir = abspath.(ARGS)
     end
 
     mn_df = DataFrame([[:θ=>arr1d(θs)];
+                       [:L=>L];
                        [Symbol("mn$l")  =>     mn[:,jl] for (jl, l) in enumerate(ls)];
                        [Symbol("smn$l") => sym_mn[:,jl] for (jl, l) in enumerate(ls)]
                        ])
