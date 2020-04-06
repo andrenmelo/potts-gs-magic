@@ -160,6 +160,7 @@ function wigner_bchg(i :: Index, q)
     return vectorspace(reshape(wigners, length(wigners)), "Site", "Vspc")
 end
 
+# wigner function of reduced density matrix on sites jl ... jr (inclusive)
 function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
     orthogonalize!(ψ, jl)
     GC.gc()
@@ -242,19 +243,23 @@ function apply_wigner_bchg(sites, ρ :: ITensor)
     return ρ 
 end
 
-#assumes already in wigner basis
+# mana of a reduced density matrix (as a single ITensor)
+# assumes already in wigner basis
 function mana(ρ :: ITensor)
     W = array(ρ)
     @assert abs(sum(W) - 1) ≤ 1e-9
     return W .|> abs |> sum |> log
 end
 
+# mana of rdm of state ψ on sites jl ... jr inclusive
 function mana(sites, ψ :: MPS, jl :: Int, jr :: Int)
     W = rdm_wigner(sites, ψ, jl, jr)
     flush(stdout)
     m = mana(W)
     return m
 end
+
+# site arithmetic: length-l subset of length-N chain
 function middlesection(N, l)
     j = N/2 |> floor |> Int
     jl = j - (l/2 |> floor |> Int)
@@ -315,7 +320,6 @@ end
 
 #Multiply Lenv by transfer matrices on sites j1 ... j2 inclusive
 function propagate(Lenv, ψ, j1, j2)
-    #println("enter propogate")
     #@showinds Lenv
     for j = j1:j2
         Lenv *= ψ[j]
@@ -325,10 +329,33 @@ function propagate(Lenv, ψ, j1, j2)
     return Lenv
 end
 
-function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs)
-    
+
+# reduced density matrix of state ψ on union of two widely separated regions
+#     ψ:     state
+#     sites: ITensor site objects for ψ
+#     jl:    left point
+#     jrs:   list of right points
+#     x:     size of region
+# e.g.
+#
+#     twopoint_rdm(ψ, sites, 3, 10:12, 2)
+#
+# returns rdms on
+#
+#     [ 3 10 11 ]
+#     [ 3 11 12 ]
+#     [ 3 12 13 ]
+#
+# Note that this explicitly constructs all of the rdms; for x >~ 2,
+# this is Bad. Better would be some kind of iterator.
+
+twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs) = twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, 1)
+function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, x :: Int)
+
     jrs = sort(jrs)
-    ρs  = Array{ITensor}(undef, length(jrs))
+    ρs         = Array{ITensor}(undef, length(jrs))
+    out_sites  = Array{Any}(undef, length(jrs))
+    N = length(sites)
     
     orthogonalize!(ψ, jl)
    
@@ -341,37 +368,65 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs)
         Lenv = delta(il,il')
     end
 
-    Lenv *= ψ[jl]
-    Lenv *= ψ[jl] |> prime |> dag
+    # left side: construct x-site rdm starting at jl,
+    # with dangling virtual index
+    lsites = jl:min(N, jl + x - 1)
+    for j = lsites
+        Lenv *= ψ[j]
+        Lenv *= ψ[j] |> prime |> dag
+    end
+
+    
     #---
     # work through the jrs, pulling out an rdm at each
-    jmarker = jl+1
+    jmarker = jl+x
     ctr = 1
     for jr in jrs
+
+        # If jr is in the region we already did,
+        # do a smaller (contiguous) subregion.
+        if jr <= jl + x - 1
+            jr = jl + x
+            
+            #(location of first site *after* left region)
+            #   - (location of first sight of right region)
+            overlap_size = (jl + x) - jr
+            
+            xp = x - overlap_size
+        else
+            xp = x
+        end
+
         Lenv = propagate(Lenv, ψ, jmarker, jr-1)
-        
-        if jr >= length(sites)
+
+        jrightmost = min(N, jr + xp - 1)
+        if jrightmost >= length(sites)
             Renv = ITensor(1)
         else
-            ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
+            ir = setdiff(findinds(ψ[jrightmost], "Link"), commoninds(ψ[jrightmost-1], ψ[jrightmost]))[1]
             Renv = delta(ir,ir')
         end
+
         
-        Lenvp = (Lenv * ψ[jr]) * dag(prime(ψ[jr]))
-        #=
-        @showinds Lenv
-        ψjr = ψ[jr]
-        @showinds ψjr
-        @showinds Lenvp
-        @showinds Renv
-        =#
-        ρs[ctr] = Lenvp * Renv
+        # right side: construct x-site rdm ending at jr,
+        # with dangling virtual index
+
+        rsites = jrightmost :-1:jr
+        for j = rsites
+            Renv *= ψ[j]
+            Renv *= ψ[j] |> prime |> dag
+        end
+        
+        ρs[ctr] = Lenv * Renv
+        out_sites[ctr] = sites[lsites ∪ rsites]
         
         ctr += 1
         jmarker = jr
+
     end
 
-    return(ρs, [sites[[jl, jr]] for jr in jrs])
+    
+    return(ρs, out_sites)
 end
 
 
@@ -384,6 +439,8 @@ function ZZH(sites, ρ)
     return ITensors.scalar( (ρ * ZZHop) - (ρ*ZIdop)*(ρ*IdZop) )
 end 
 
+# misnomer
+# really not restricted to twopoint situation
 function twopoint_mana(sites, ρ)
     ρ = apply_wigner_bchg(sites, ρ)
     return mana(ρ)
@@ -416,7 +473,7 @@ for dir = abspath.(ARGS)
                     :measX  => Array{Complex{Float64}}(undef, Nθ),
                     :measZ  => Array{Complex{Float64}}(undef, Nθ),
                     :chimax => Array{Int64}(undef, Nθ),
-                    :stpmn  => Array{Array{Float64,1}}(undef, Nθ),
+                    :stpmn  => Array{Array{Float64,2}}(undef, Nθ),
                     :stpS2  => Array{Array{Float64,1}}(undef, Nθ),
                     :ZZH    => Array{Array{Complex{Float64},1}}(undef, Nθ)] )
 
@@ -426,6 +483,7 @@ for dir = abspath.(ARGS)
           (smb = :ZH,   tp = Complex{Float64})]
 
     sites = deserialize("$dir/sites.p")
+    L = length(sites)
     sym = symmetrizer(sites)
     mn     = Array{Float64}(undef, (Nθ, length(ls)))
     sym_mn = Array{Float64}(undef, (Nθ, length(ls)))
@@ -461,17 +519,26 @@ for dir = abspath.(ARGS)
             sym_mn[jθ,jl] = mana(sites, ψsym, middlesection(L,l)...)
         end
 
-
         #bad hygiene: re-use of this variable jl
         jl = L/4 |> Int
         jrs = (jl + 1) : L
 
-        
-        ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs)
+
+        # two-point mana for region sizes xs = 1:3
+        # doing this as an array is kinda weird
+        xs = 1:3
+        stpmn = zeros(length(jrs), length(xs))
+        for x in xs
+            ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs, x)
+            stpmn[:,x] = [twopoint_mana(sts, ρ) for (ρ, sts) in zip(ρs, tpsites)]
+            if x == 1
+                df[jθ, :ZZH]   = [ZZH(sts, ρ)           for (ρ, sts) in zip(ρs, tpsites)]
+                df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
+            end
+        end
+           
+        df[jθ, :stpmn] = stpmn
         df[jθ, :θ]     = θ
-        df[jθ, :stpmn] = [twopoint_mana(sts, ρ) for (ρ, sts) in zip(ρs, tpsites)]
-        df[jθ, :ZZH]   = [ZZH(sts, ρ)           for (ρ, sts) in zip(ρs, tpsites)]
-        df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
         df[jθ, :jl]    = jl
         df[jθ, :jrs]   = jrs
         
@@ -479,11 +546,12 @@ for dir = abspath.(ARGS)
     end
 
     mn_df = DataFrame([[:θ=>arr1d(θs)];
+                       [:L=>L];
                        [Symbol("mn$l")  =>     mn[:,jl] for (jl, l) in enumerate(ls)];
                        [Symbol("smn$l") => sym_mn[:,jl] for (jl, l) in enumerate(ls)]
                        ])
 
-    fn = "$dir/postprocessed.p"
+    fn = "$dir/$(postprocess_commit)_postprocessed.p"
     serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
     f = open(ENV["MAGIC_POSTPROCESSED"], "a")
     println(f, fn)
