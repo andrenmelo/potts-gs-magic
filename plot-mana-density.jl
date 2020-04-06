@@ -163,6 +163,57 @@ for L in [8,16,32,64,128]
     end
 end
 
+
+######################################################################
+# two-point
+
+
+L = tL = 128
+tdf = query(df, [(:λ, 2.0^-13)
+                 (:L, L)])
+tdf = tdf[0.8 * π/4 .<= tdf[!,:θ] .<= 1.2 * π/4, :]
+
+θs = sort(tdf[!, :θ])
+δθ = θs[2] - θs[1]
+
+jl = L/4 |> Int
+jrs = (L/4 + 1) : L
+cmap = get_cmap("viridis")
+function label(θ)
+    if θ ≈ π/4
+        return L"\theta = \pi/4"
+    elseif (abs(θ - π/4) <= 2*δθ) || (θ == minimum(θs))   || (θ == maximum(θs))
+        return "\$\\theta = $(θ/(π/4))\\ \\pi/4\$"
+    end
+end
+
+color(θ) = if θ == π/4 "black" else color(cmap, θ, θs) end
+for rw in eachrow(tdf)
+   plot(jrs .- jl, rw[:stpmn]/2, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
+end
+title("\$L = $L\$")
+δx = 1:L/2
+
+m0 = 0.17
+A = 1; β = 0.044
+plot(δx, A * δx.^(-β) .+ (m0 - A) , ":", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
+
+
+A = 10; β = 0.004
+plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
+
+legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
+ylabel("two-point mana density \$m(\rho_{ij})\$")
+xlabel("\$\\delta x = j - i\$")
+semilogx()
+ylim(0, 0.2)
+fn = "$figdir/$(nb)_twopoint-mana-L$L-semilogx.pdf"
+@show fn
+flush(stdout)
+savefig(fn, bbox_inches="tight")
+clf()
+
+
 ######################################################################
 # do the exact (Krylov)
 
@@ -216,12 +267,12 @@ L = 128
 tdf = query(mn_df, [(:L, L)
                     (:λ, λ)])
 cmap = get_cmap("OrRd")
-ls = 2:7 
+ls = 1:7 
 for l in ls
     plot(tdf[!,:θ], tdf[!,Symbol("smn$(l)")]/l, ".-", color=color(cmap, l, ls), label="\$l = $l\$")
 end
 
-plot(θs, kdf[!,:mn]/krylov_L, "-", color="black", label="Lanczos \$N = $(krylov_L)\$")
+plot(θs, kdf[!,:mn]/krylov_L, "-", color="black", label="\$N = $(krylov_L)\$")
 
 
 
