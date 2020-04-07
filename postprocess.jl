@@ -516,7 +516,7 @@ for dir = abspath.(ARGS)
 
         # two-point mana for region sizes xs = 1:3
         # doing this as an array is kinda weird
-        xs = 1:3
+        xs = 1:2
         stpmn = zeros(length(jrs), length(xs))
         for x in xs
             ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs, x)
