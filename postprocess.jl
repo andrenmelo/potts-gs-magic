@@ -446,7 +446,6 @@ for dir = abspath.(ARGS)
     # would be better to affirmatively specify files to read as regex
     fns = [l for l in readdir(dir)
            if !((l == "sites.p") || (occursin("postprocessed.p", l)))]
-    @show fns
     Nθ = length(fns)
     θs = Array{Float64}(undef, Nθ)
 
