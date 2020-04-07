@@ -456,7 +456,9 @@ for dir = abspath.(ARGS)
     ls = (1:7) |> reverse
 
     #fns = readdir(dir)[1:end-1]
-    fns = [l for l in readdir(dir) if !(l ∈ ["postprocessed.p", "sites.p"]) ]
+    # would be better to affirmatively specify files to read as regex
+    fns = [l for l in readdir(dir)
+           if !((l == "sites.p") || (occursin("postprocessed.p", l)))]
     Nθ = length(fns)
     θs = Array{Float64}(undef, Nθ)
 
@@ -526,7 +528,7 @@ for dir = abspath.(ARGS)
 
         # two-point mana for region sizes xs = 1:3
         # doing this as an array is kinda weird
-        xs = 1:3
+        xs = 1:2
         stpmn = zeros(length(jrs), length(xs))
         for x in xs
             ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs, x)
@@ -545,11 +547,13 @@ for dir = abspath.(ARGS)
         GC.gc()
     end
 
-    mn_df = DataFrame([[:θ=>arr1d(θs)];
-                       [:L=>L];
-                       [Symbol("mn$l")  =>     mn[:,jl] for (jl, l) in enumerate(ls)];
-                       [Symbol("smn$l") => sym_mn[:,jl] for (jl, l) in enumerate(ls)]
-                       ])
+    mn_df = DataFrame()
+    mn_df.θ = arr1d(θs)
+    mn_df.L = L
+    for (jl,l) in enumerate(ls)
+        mn_df[!,Symbol("mn$l")]  .= mn[:,jl]
+        mn_df[!,Symbol("smn$l")] .= sym_mn[:,jl]
+    end
 
     fn = "$dir/$(postprocess_commit)_postprocessed.p"
     serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
