@@ -534,11 +534,13 @@ for dir = abspath.(ARGS)
         GC.gc()
     end
 
-    mn_df = DataFrame([[:θ=>arr1d(θs)];
-                       [:L=>L];
-                       [Symbol("mn$l")  =>     mn[:,jl] for (jl, l) in enumerate(ls)];
-                       [Symbol("smn$l") => sym_mn[:,jl] for (jl, l) in enumerate(ls)]
-                       ])
+    mn_df = DataFrame()
+    mn_df.θ = arr1d(θs)
+    mn_df.L = L
+    for (jl,l) in enumerate(ls)
+        mn_df[!,Symbol("mn$l")]  .= mn[:,jl]
+        mn_df[!,Symbol("smn$l")] .= sym_mn[:,jl]
+    end
 
     fn = "$dir/$(postprocess_commit)_postprocessed.p"
     serialize(fn, (df, mn_df, postprocess_commit, postprocess_itensor_commit))
