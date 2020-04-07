@@ -203,7 +203,7 @@ A = 10; β = 0.004
 plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
 
 legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
-ylabel("two-point mana density \$m(\rho_{ij})\$")
+ylabel("two-point mana density \$m(\\rho_{ij})\$")
 xlabel("\$\\delta x = j - i\$")
 semilogx()
 ylim(0, 0.2)
