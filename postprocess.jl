@@ -168,7 +168,7 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
     if jl <= 1
         Lenv = ITensor(1)
     else
-        il = setdiff(findinds(ψ[jl], "Link"), commoninds(ψ[jl], ψ[jl+1]))[1]
+        il = commonindex(ψ[jl-1], ψ[jl])
         Lenv = delta(il,il')
     end
 
@@ -476,6 +476,8 @@ for dir = abspath.(ARGS)
                     :measZ  => Array{Complex{Float64}}(undef, Nθ),
                     :chimax => Array{Int64}(undef, Nθ),
                     :stpmn  => Array{Array{Float64,2}}(undef, Nθ),
+                    :slmn  => Array{Array{Float64,1}}(undef, Nθ),
+                    :srmn  => Array{Array{Float64,2}}(undef, Nθ),
                     :stpS2  => Array{Array{Float64,1}}(undef, Nθ),
                     :ZZH    => Array{Array{Complex{Float64},1}}(undef, Nθ)] )
 
@@ -538,8 +540,34 @@ for dir = abspath.(ARGS)
                 df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
             end
         end
-           
+
+        # twopoint_rdm puts the oc at jl.
+        # We need the manas of the rdms of the two regions separately;
+        #
+        #     mana(sites, ψ :: MPS, jl :: Int, jr :: Int)
+        #
+        # calls
+        #
+        #     rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
+        # 
+        # which puts the oc at *that* jl i.e. the left edge of the
+        # subsystem whose mana we want.
+        #
+        # The arrangement I've got here, then, walks the o.c. through the chain.
+        
+        slmn = [mana(sites, ψ, jl, jl + x - 1) for x in xs]
+        srmn  = zeros( length(jrs), length(xs))
+
+        # order of for loops will be super important for performance
+        for (jjr, jr) in enumerate(jrs) # this idiom's a little funny
+            for (jx,x) in enumerate(xs)
+                jrightmost = min(L, jr + x - 1)
+                srmn[jjr, jx] = mana(sites, ψ, jr, jrightmost)
+            end
+        end 
         df[jθ, :stpmn] = stpmn
+        df[jθ, :slmn] = slmn
+        df[jθ, :srmn] = srmn
         df[jθ, :θ]     = θ
         df[jθ, :jl]    = jl
         df[jθ, :jrs]   = jrs
