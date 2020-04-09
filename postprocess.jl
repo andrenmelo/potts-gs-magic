@@ -190,6 +190,10 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
         Renv *= (ψ[j] |> prime |> dag) * (wigner_bchg(sites[j],3) * (1/3) )
     end
 
+    # This sanity check handles certain edge cases (e.g. jr = jl, end of chain) poorly.
+    # Not worth the trouble fo fixing atm.
+    
+    #=
     if(length(inds(Lenv)) + length(inds(Renv)) != 4 + (jr - jl + 1))
         @show jl, jr
 	flush(stdout)
@@ -201,6 +205,7 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
 	flush(stdout)
 	error()
     end
+    =#
 
     ρ = Lenv * Renv
     
