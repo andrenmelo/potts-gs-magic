@@ -172,7 +172,7 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
         Lenv = delta(il,il')
     end
 
-    if jr >= length(sites)
+    if jr >= length(sites) || jr == 1 #only going to happen for L = 4
         Renv = ITensor(1)
     else
         ir = setdiff(findinds(ψ[jr], "Link"), commoninds(ψ[jr], ψ[jr-1]))[1]
