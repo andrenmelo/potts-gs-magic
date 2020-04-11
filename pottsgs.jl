@@ -28,6 +28,21 @@ function randomMPS(::Type{S}, sites, χ :: Int64) where S <: Number
     return M
 end
 
+# there has to be a helper function for this
+# am too tired
+function ket0_mps(sites)
+    N = length(sites)
+    links = [Index(1, "Link,l=$ii") for ii in 1:N-1]
+    M = MPS(sites)
+
+    M[1] = ITensor([1 0 0], links[1], sites[1])
+    for j = 2:N-1
+        M[j] = ITensor([1 0 0], links[j-1], links[j], sites[j])
+    end
+    M[N] = ITensor([1 0 0], links[N-1], sites[N])
+    return M
+end
+
 const PottsSite = makeTagType("Potts")
 
 # 1-index my Potts states
@@ -199,7 +214,7 @@ serialize("$(dir)/sites.p", sites)
     if adiabatic
         E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, long=long, ψ0 = ψ)
     else
-        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, long=long, ψ0 = nothing)
+        E1,E2,energies, ψ = potts3gs(θ, λ, χ0, sites, quiet=true, noise=noise, long=long, ψ0 = ket0_mps(sites))
     end
     serialize("$(dir)/$(lpad(jθ,4,'0')).p", (θ,E1,E2,energies,ψ))
     flush(stdout)
