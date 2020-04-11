@@ -123,8 +123,9 @@ end
 ######################################################################
 # read the postprocessed MPS data
 itensorsjl_commit = "b7aa90c"
-script_commit     = "03eb2b8"
-subdate           = "2020-02-21"
+script_commit     = "b6c0261"
+postprocess_commit = "c3b11fd"
+subdate           = "2020-03-04"
 jobname           = "M03"
 
 itensors_dir = ENV["ITENSORSJL_DIR"]
@@ -137,9 +138,9 @@ metadata = Dict(["nb"     => nb,
           "subdate"        => subdate,
     ])
 
-θmin = 0.05
-θmax = 1.95
-dθ   = 0.05
+θmin = 0.00
+θmax = 2.0
+dθ   = 0.01
 
 
 χ0s = [1]
@@ -150,10 +151,12 @@ ls = 3:7
 df = DataFrame()
 mn_df = DataFrame()
 
-for L in [8,16,32,64,128]
+#for L in [8,16,32,64,128]
+for L in [128]
     for λ in [2.0^-j for j in 1:13]
-        dir = "$datadir/$jobname/$subdate/$(itensorsjl_commit)-$(script_commit)_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi01/" 
-        new_df, new_mn_df = deserialize("$dir/postprocessed.p")
+        dir = "$datadir/$jobname/$subdate/$(itensorsjl_commit)-$(script_commit)_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi01/"
+        tpl = deserialize("$dir/$(postprocess_commit)_postprocessed.p")
+        new_df, new_mn_df = deserialize("$dir/$(postprocess_commit)_postprocessed.p")
         new_df[!,:L] .= L
         new_df[!,:λ] .= λ
         new_mn_df[!,:L] .= L
@@ -269,7 +272,7 @@ tdf = query(mn_df, [(:L, L)
 cmap = get_cmap("OrRd")
 ls = 1:7 
 for l in ls
-    plot(tdf[!,:θ], tdf[!,Symbol("smn$(l)")]/l, ".-", color=color(cmap, l, ls), label="\$l = $l\$")
+    plot(tdf[!,:θ], tdf[!,Symbol("smn$(l)")]/l, "-", color=color(cmap, l, ls), label="\$l = $l\$")
 end
 
 plot(θs, kdf[!,:mn]/krylov_L, "-", color="black", label="\$N = $(krylov_L)\$")
