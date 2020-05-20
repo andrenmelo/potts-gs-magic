@@ -120,6 +120,107 @@ function query(df :: DataFrame, qs)
     return df[inds,:]
 end
 
+
+######################################################################
+# toy model
+
+using COSMO
+using JuMP
+
+STABvec = zeros(Complex{Float64}, (3,12))
+
+STABvec[:,1:3] = eigvecs(T(1,0))
+STABvec[:,4:6] = eigvecs(T(0,1))
+STABvec[:,7:9] = eigvecs(T(1,1))
+STABvec[:,10:12] = eigvecs(T(1,2))
+
+STABvec
+
+STAB = [STABvec[:,j] ⊗ STABvec[:,j]' for j in 1:12]
+
+G = [tr(STAB[j] * STAB[k]) for j in 1:12, k in 1:12]
+@assert (G |> imag .|> abs |> maximum) < 1e-10
+Gr = real(G)
+
+
+function hull_fdist(ρ :: Array{<:Number, 2}, optimizer)
+    b = [tr(ρ*σ) for σ in STAB]
+    @assert (imag(b) .|> abs |> maximum) < 1e-14
+    br = real(b)
+    m = Model(optimizer)
+    @variable(m, p[1:12])
+    @objective(m, Min, -2*p'*br + p'*Gr*p  )
+    @constraint(m, p .≥ 0)
+    @constraint(m, sum(p) == 1)
+    optimize!(m)
+    return m
+end
+
+function wigner_fdist(ρ :: Array{<:Number, 2})
+    m = Model(COSMO.Optimizer)
+    @variable(m, σ[1:3, 1:3], PSD)
+    @objective(m, Min, tr(σ*σ) - 2 * tr(ρ*σ))
+    @constraint(m, tr(σ) == 1) #state
+    for a1 = 0:2, a2 = 0:2
+        @constraint(m, tr(σ*real(Aμ(a1,a2))) ≥ 0) #ummm
+    end
+    optimize!(m)
+    return m
+end
+
+αs = 0:0.01:1
+hf = zeros(length(αs))
+wf = zeros(length(αs))
+mn = zeros(length(αs))
+
+ψN = [2; -1; 1]
+ρN = ψN ⊗ ψN'
+ρN /= tr(ρN)
+for (jα, α) in enumerate(αs)
+    ρ = (1 - α)/3 * I + α*ρN
+    mn[jα] = mana(ρ)
+
+    m = hull_fdist(ρ, COSMO.Optimizer)
+    hf[jα] = objective_value(m) + tr(ρ^2)
+ 
+    m = wigner_fdist(ρ)
+    wf[jα] = objective_value(m) + tr(ρ^2)
+    
+end
+
+@assert all(mn .> -1e-10)
+@assert all(wf .> -1e-10)
+@assert all(hf.> -1e-10)
+mn[mn .< 0] .= 0
+hf[hf .< 0] .= 0
+wf[wf .< 0] .= 0
+
+#sns.set_style("ticks")
+
+fig, ax1 = subplots()
+ax1.plot(αs, sqrt.(hf), label = L"d_S")
+ax1.plot(αs, sqrt.(wf), label = L"d_W")
+ax1.plot(αs, mn, color="black", label = L"Mana $\mathcal M$")
+#ylim(1e-6, 1)
+#legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
+legend()
+
+#=
+ax2 = fig.add_axes((0.25, 0.5, 0.35, 0.35))
+ax2.semilogy()
+ax2.plot(αs, sqrt.(hf), label = "hull")
+ax2.plot(αs, sqrt.(wf) , label = "wigner")
+ax2.plot(αs, mn, color="black", label = "mana")
+ax2.set_ylim(1e-3, 1)
+=#
+fn = "$figdir/$(nb)_toy-model.pdf"
+@show fn
+flush(stdout)
+savefig(fn, bbox_inches="tight")
+xlabel(L"\alpha")
+
+clf()
+
 ######################################################################
 # read the postprocessed MPS data
 itensorsjl_commit = "b7aa90c"
@@ -182,17 +283,18 @@ tdf = tdf[0.8 * π/4 .<= tdf[!,:θ] .<= 1.2 * π/4, :]
 jl = L/4 |> Int
 jrs = (L/4 + 1) : L
 cmap = get_cmap("viridis")
+
 function label(θ)
     if θ ≈ π/4
         return L"\theta = \pi/4"
     elseif (abs(θ - π/4) <= 2*δθ) || (θ == minimum(θs))   || (θ == maximum(θs))
-        return "\$\\theta = $(θ/(π/4))\\ \\pi/4\$"
+        return "\$\\theta = $(round(θ/(π/4), digits=4))\\ \\pi/4\$"
     end
 end
 
 color(θ) = if θ == π/4 "black" else color(cmap, θ, θs) end
 for rw in eachrow(tdf)
-   plot(jrs .- jl, rw[:stpmn]/2, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
+   plot(jrs .- jl, rw[:stpmn][:,1]/2, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
 end
 title("\$L = $L\$")
 δx = 1:L/2
@@ -206,8 +308,8 @@ A = 10; β = 0.004
 plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
 
 legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
-ylabel("two-point mana density \$m(\\rho_{ij})\$")
-xlabel("\$\\delta x = j - i\$")
+ylabel(L"Connected component $m_{cc}(A,B)$")
+xlabel(L"Separation $\delta x = j - i$")
 semilogx()
 ylim(0, 0.2)
 fn = "$figdir/$(nb)_twopoint-mana-L$L-semilogx.pdf"
@@ -216,6 +318,39 @@ flush(stdout)
 savefig(fn, bbox_inches="tight")
 clf()
 
+
+tdf = query(df, [(:λ, 2.0^-13)
+                 (:L, L)])
+tdf = tdf[0.8 * π/4 .<= tdf[!,:θ] .<= 1.2 * π/4, :]
+
+θs = sort(tdf[!, :θ])
+δθ = θs[2] - θs[1]
+
+for rw in eachrow(tdf)
+   plot(jrs .- jl, rw[:stpmn][:,2]/4 .- rw[:smn2]/2, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
+end
+title("\$2 \\times 2\$ mana density, \$L = $L\$")
+
+ylabel(L"Connected component $m_{cc}(A,B)$")
+xlabel(L"Separation $\delta x = j - i$")
+
+δx = 2:3*L/4
+
+m0 = 0.125
+A = 0.7; β = 0.044
+plot(δx, A * δx.^(-β) .+ (m0 - A) , ":", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
+
+A = 7; β = 0.004
+plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
+
+semilogx()
+ylim(0, 0.13)
+legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
+fn = "$figdir/$(nb)_twopoint-2x2-mana-L$L-semilogx.pdf"
+@show fn
+flush(stdout)
+savefig(fn, bbox_inches="tight")
+clf()
 
 ######################################################################
 # do the exact (Krylov)
@@ -269,6 +404,8 @@ L = 128
 λ = 2.0^-10
 tdf = query(mn_df, [(:L, L)
                     (:λ, λ)])
+
+axvspan(0.94 * π/4, 1.06 * π/4, color="lightgrey")
 cmap = get_cmap("OrRd")
 ls = 1:7 
 for l in ls
