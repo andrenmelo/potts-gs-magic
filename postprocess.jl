@@ -212,34 +212,6 @@ function rdm_wigner(sites, ψ, jl :: Int, jr :: Int)
     return ρ
 end
 
-function symmetrizer(sites)
-    N = length(sites)
-    I  = MPO(sites, Vector{String}(["Id"   for j in 1:N]))
-    X  = MPO(sites, Vector{String}(["X"    for j in 1:N]))
-    X2 = MPO(sites, Vector{String}(["XH" for j in 1:N]))
-    sym = sum(I,X)
-    sym = sum(sym, X2)
-    sym[1] *= (1.0 / sqrt(3) )
-    return sym
-end
-
-#builtin is somehow pathological: out of memory error
-function cdw_applyMPO(A :: MPO, ψ :: MPS)
-    φA = [mapprime(ψ[j] * A[j], 1, 0) for j in 1:length(ψ)]
-    φ = MPS(length(ψ), φA)    
-    return φ
-end
-
-function symmetrize(sym, ψ :: MPS)
-    N = length(ψ)
-    ψsym = cdw_applyMPO(sym, ψ)
-    orthogonalize!(ψsym, 1)
-    
-    ψsym[N] /= sqrt(inner(ψsym, ψsym))#setindex! sets llim and rlim appropriately
-    orthogonalize!(ψsym, 1)
-    return ψsym
-end
-
 function apply_wigner_bchg(sites, ρ :: ITensor)
     for j in 1:length(sites)
         flush(stdout)
@@ -284,11 +256,8 @@ function unitvector(ind :: Index, j :: Int)
 end
 ind = Index(3)
 
-import ITensors
-
 MPS(v :: Vector{<:ITensor}) = MPS(length(v), v)
 MPO(v :: Vector{<:ITensor}) = MPO(length(v), v)
-
 
 function measure(M :: MPS, sites :: Array{Index,1}, qs)
     N = length(M)
