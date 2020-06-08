@@ -287,7 +287,10 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, x :: Int)
     # left side: construct x-site rdm starting at jl,
     # with dangling virtual index
     lsites = jl:min(N, jl + x - 1)
+    @show x
+    println("L part")
     for j = lsites
+        @show j
         Lenv *= ψ[j]
         Lenv *= ψ[j] |> prime |> dag
     end
@@ -328,7 +331,9 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, x :: Int)
         # with dangling virtual index
 
         rsites = jrightmost :-1:jr
+        println("R part")
         for j = rsites
+            @show j
             Renv *= ψ[j]
             Renv *= ψ[j] |> prime |> dag
         end
