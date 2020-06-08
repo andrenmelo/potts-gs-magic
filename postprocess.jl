@@ -14,7 +14,6 @@ postprocess_commit = git_commit(@__DIR__())
 itensors_dir = ENV["ITENSORSJL_DIR"]
 postprocess_itensor_commit = git_commit(itensors_dir)
 
-lg(x) = log(x)/log(2)
 arr1d(a :: Array) = reshape(a, length(a))
 
 function vectorspace(Lst :: Array{T}) where T
