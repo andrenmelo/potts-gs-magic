@@ -1,3 +1,6 @@
+
+lg(x) = log(x)/log(2)
+
 function symmetrizer(sites)
     N = length(sites)
     I  = MPO(sites, Vector{String}(["Id"   for j in 1:N]))
