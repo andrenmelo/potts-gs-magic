@@ -1,4 +1,3 @@
-
 lg(x) = log(x)/log(2)
 
 function symmetrizer(sites)

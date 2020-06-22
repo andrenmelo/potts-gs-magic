@@ -308,7 +308,7 @@ A = 10; β = 0.004
 plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
 
 legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
-ylabel(L"Connected component $m_{cc}(A,B)$")
+ylabel(L"Connected component $m_{cc}(\{i\},\{j\})$")
 xlabel(L"Separation $\delta x = j - i$")
 semilogx()
 ylim(0, 0.2)
@@ -327,12 +327,13 @@ tdf = tdf[0.8 * π/4 .<= tdf[!,:θ] .<= 1.2 * π/4, :]
 δθ = θs[2] - θs[1]
 
 for rw in eachrow(tdf)
-   plot(jrs .- jl, rw[:stpmn][:,2]/4 .- rw[:smn2]/2, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
+   @show rw[:θ]
+   plot(jrs .- jl, rw[:stpmn][:,2]/4 .- rw[:slmn][2]/4-rw[:srmn][:,2]/4, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
 end
 title("\$2 \\times 2\$ mana density, \$L = $L\$")
 
-ylabel(L"Connected component $m_{cc}(A,B)$")
-xlabel(L"Separation $\delta x = j - i$")
+ylabel(L"$m_{cc}(\{i,i+1\},\{j,j+1\})$")
+xlabel(L"Separation $\delta x = j - i-1$")
 
 δx = 2:3*L/4
 
@@ -343,14 +344,21 @@ plot(δx, A * δx.^(-β) .+ (m0 - A) , ":", label="\$$A\\; \\delta x^{-$β} - $(
 A = 7; β = 0.004
 plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
 
+A = 0.25; β = 4/15
+plot(δx, A * δx.^(-β) .+ (m0 - A) , "-", label="\$$A\\; \\delta x^{-4/15} - $(A - m0)\$", color="red")
+
 semilogx()
-ylim(0, 0.13)
+#ylim(0, 0.13)
 legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
 fn = "$figdir/$(nb)_twopoint-2x2-mana-L$L-semilogx.pdf"
 @show fn
 flush(stdout)
 savefig(fn, bbox_inches="tight")
 clf()
+
+
+println("!!!!!!!!!!!!!!!!!!!!!!!!!! intentional temporary early exit !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+exit()
 
 ######################################################################
 # do the exact (Krylov)
