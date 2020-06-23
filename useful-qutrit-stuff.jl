@@ -110,7 +110,7 @@ function ee(j)
 end
 
 site_wigner_bchg = zeros(Complex{Float64},9,9)
-for (j, (a1,a2)) in enumerate(product(0:2,0:2))
+for (j, (a1,a2)) in enumerate(Iterators.product(0:2,0:2))
     A = Aμ(a1,a2)
     #A /= norm(A)
     site_wigner_bchg[j,:] = reshape(A', 9)

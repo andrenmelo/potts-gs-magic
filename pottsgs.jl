@@ -66,12 +66,12 @@ function potts3gs(θ, λ, χ0, sites;
         add!(ampo, -λ, "ZH", j)
     end
 
-    H = toMPO(ampo, sites);
+    H = MPO(ampo, sites);
     
     if long
         observer = DMRGObserver(Array{String}(undef,0), sites)
     else
-        observer = DMRGObserver(Array{String}(undef,0), sites, 1e-10)
+        observer = DMRGObserver(Array{String}(undef,0), sites, energy_tol = 1e-10)
     end
     
     sweeps = Sweeps(400)
@@ -80,14 +80,14 @@ function potts3gs(θ, λ, χ0, sites;
     if noise noise!(sweeps, [2.0^(-j) for j in 2:50]...) end
 
     if ψ0 != nothing
-        E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
+        E1, ψ1 = dmrg(H,ψ0,sweeps, outputlevel=0, observer=observer) 
         E2 = 0
     else #ψ0 == nothing; do it twice
         ψ0 = randomMPS(Complex{Float64}, sites, χ0)
-        E1, ψ1 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer) 
+        E1, ψ1 = dmrg(H,ψ0,sweeps, outputlevel=0, observer=observer) 
     
         ψ0= randomMPS(Complex{Float64}, sites, χ0)
-        E2, ψ2 = dmrg(H,ψ0,sweeps, quiet=quiet, observer=observer)
+        E2, ψ2 = dmrg(H,ψ0,sweeps, outputlevel=0, observer=observer)
         
         if abs(E1 - E2) > 1e-6
             @warn("Energy difference: θ = $θ, $E1 vs $E2")
@@ -109,7 +109,7 @@ function potts3gs(θ, λ, χ0, sites;
 end
 
 s = ArgParseSettings()
-@add_arg_table s begin
+@add_arg_table! s begin
     "--length",    "-l" # help = "chain of length"
     "--dtheta",   default => "0.01"
     "--thetamin", default => "0.1"

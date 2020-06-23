@@ -1,3 +1,6 @@
+
+error("Use the notebook instead!")
+
 datadir = "/home/christopher/work/2019-10-MAGIC/data"
 figdir = "/home/christopher/work/2019-10-MAGIC/MAGICPAPER00/figures"
 krylov_L = 6
@@ -120,7 +123,6 @@ function query(df :: DataFrame, qs)
     return df[inds,:]
 end
 
-
 ######################################################################
 # toy model
 
@@ -225,7 +227,7 @@ clf()
 # read the postprocessed MPS data
 itensorsjl_commit = "b7aa90c"
 script_commit     = "b6c0261"
-postprocess_commit = "c3b11fd"
+postprocess_commit = "b9f12b0"
 subdate           = "2020-03-04"
 jobname           = "M03"
 
@@ -255,9 +257,12 @@ mn_df = DataFrame()
 #for L in [8,16,32,64,128]
 for L in [128]
     for λ in [2.0^-j for j in 1:13]
-        dir = "$datadir/$jobname/$subdate/$(itensorsjl_commit)-$(script_commit)_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi01/"
+
+        dir = "$datadir/$jobname/$subdate/$(itensorsjl_commit)-$(script_commit)_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi01" 
+        #new_df, new_mn_df, pp_cm, pp_ic = deserialize("$dir/$(postprocess_commit)_postprocessed.p")
         tpl = deserialize("$dir/$(postprocess_commit)_postprocessed.p")
-        new_df, new_mn_df = deserialize("$dir/$(postprocess_commit)_postprocessed.p")
+        new_df = tpl[1]
+        new_mn_df = tpl[2]
         new_df[!,:L] .= L
         new_df[!,:λ] .= λ
         new_mn_df[!,:L] .= L
@@ -267,15 +272,18 @@ for L in [128]
     end
 end
 
+whole_df = join(df, mn_df, on=[:θ, :L, :λ]);
 
 ######################################################################
 # two-point
 
-
 L = tL = 128
-tdf = query(df, [(:λ, 2.0^-13)
-                 (:L, L)])
+tdf = query(whole_df, [(:λ, 2.0^-13)
+                       (:L, L)])
 tdf = tdf[0.8 * π/4 .<= tdf[!,:θ] .<= 1.2 * π/4, :]
+
+crit_tpmn = tdf[tdf[:,:θ] .≈ π/4][:stpmn][:,1]/2
+@show minimum(1:length(crit_tpmn)[crit_tpmn .< 1e-6])
 
 θs = sort(tdf[!, :θ])
 δθ = θs[2] - θs[1]
@@ -307,8 +315,12 @@ plot(δx, A * δx.^(-β) .+ (m0 - A) , ":", label="\$$A\\; \\delta x^{-$β} - $(
 A = 10; β = 0.004
 plot(δx, A * δx.^(-β) .+ (m0 - A) , "--", label="\$$A\\; \\delta x^{-$β} - $(A - m0)\$", color="red")
 
+m0 = 0.17
+A = 0.25; β = 4/15
+plot(δx, A * δx.^(-β) .+ (m0 - A) , "-", label="\$$A\\; \\delta x^{-4/15} - $(round(A - m0, digits=4))\$", color="red")
+
 legend(loc = "upper left", bbox_to_anchor=(1.0,1.0))
-ylabel(L"Connected component $m_{cc}(\{i\},\{j\})$")
+ylabel(L"Connected component $m_{\mathrm{cc}}(\{i\},\{j\})$")
 xlabel(L"Separation $\delta x = j - i$")
 semilogx()
 ylim(0, 0.2)
@@ -319,8 +331,8 @@ savefig(fn, bbox_inches="tight")
 clf()
 
 
-tdf = query(df, [(:λ, 2.0^-13)
-                 (:L, L)])
+tdf = query(whole_df, [(:λ, 2.0^-13)
+                       (:L, L)])
 tdf = tdf[0.8 * π/4 .<= tdf[!,:θ] .<= 1.2 * π/4, :]
 
 θs = sort(tdf[!, :θ])
@@ -330,10 +342,9 @@ for rw in eachrow(tdf)
    @show rw[:θ]
    plot(jrs .- jl, rw[:stpmn][:,2]/4 .- rw[:slmn][2]/4-rw[:srmn][:,2]/4, ".-", color=color(rw[:θ]), label=label(rw[:θ]))
 end
-title("\$2 \\times 2\$ mana density, \$L = $L\$")
 
-ylabel(L"$m_{cc}(\{i,i+1\},\{j,j+1\})$")
-xlabel(L"Separation $\delta x = j - i-1$")
+ylabel(L"$m_{\mathrm{cc}}(\{i, i+1\},\{j,j+1\})$")
+xlabel(L"Separation $\delta x = j - i$")
 
 δx = 2:3*L/4
 
