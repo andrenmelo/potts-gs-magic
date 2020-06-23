@@ -6,6 +6,8 @@ using Serialization
 using Statistics
 using DataFrames
 
+include("utility.jl")
+include("potts-sites.jl")
 
 git_commit() = String(read(pipeline(`git log`, `head -1`, `cut -d ' ' -f 2`, `cut -b 1-7`))[1:end-1])
 git_commit(path :: String) = cd(git_commit, path)
@@ -302,23 +304,12 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, x :: Int)
     ctr = 1
     for jr in jrs
 
-        # If jr is in the region we already did,
-        # do a smaller (contiguous) subregion.
-        if jr <= jl + x - 1
-            jr = jl + x
-            
-            #(location of first site *after* left region)
-            #   - (location of first sight of right region)
-            overlap_size = (jl + x) - jr
-            
-            xp = x - overlap_size
-        else
-            xp = x
-        end
+        # If jr is in the region we already did, error out
+        if jr <= jl + x - 1 error("jr <= jl + x - 1: jr = $jr, jl = $jr, x = $x") end 
 
         Lenv = propagate(Lenv, ψ, jmarker, jr-1)
 
-        jrightmost = min(N, jr + xp - 1)
+        jrightmost = min(N, jr + x - 1)
         if jrightmost >= length(sites)
             Renv = ITensor(1)
         else
@@ -446,21 +437,22 @@ for dir = abspath.(ARGS)
 
         #bad hygiene: re-use of this variable jl
         jl = L/4 |> Int
-        jrs = (jl + 1) : L
 
 
         # two-point mana for region sizes xs = 1:3
         # doing this as an array is kinda weird
         xs = 1:2
-        stpmn = zeros(length(jrs), length(xs))
+        stpmn = zeros(3*L/4 |> Int, length(xs)) 
         for x in xs
+            jrs = (jl + x) : L
             ρs, tpsites = twopoint_rdm(ψsym, sites, jl, jrs, x)
-            stpmn[:,x] = [twopoint_mana(sts, ρ) for (ρ, sts) in zip(ρs, tpsites)]
+            stpmn[x:end,x] = [twopoint_mana(sts, ρ) for (ρ, sts) in zip(ρs, tpsites)]
             if x == 1
                 df[jθ, :ZZH]   = [ZZH(sts, ρ)           for (ρ, sts) in zip(ρs, tpsites)]
                 df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
             end
         end
+        @show stpmn[:,2]
 
         # twopoint_rdm puts the oc at jl.
         # We need the manas of the rdms of the two regions separately;
@@ -477,21 +469,24 @@ for dir = abspath.(ARGS)
         # The arrangement I've got here, then, walks the o.c. through the chain.
         
         slmn = [mana(sites, ψ, jl, jl + x - 1) for x in xs]
-        srmn  = zeros( length(jrs), length(xs))
+        srmn  = zeros( 3*L/4 |> Int, length(xs))
 
         # order of for loops will be super important for performance
-        for (jjr, jr) in enumerate(jrs) # this idiom's a little funny
+        for (jjr, jr) in enumerate(Int(L/4+1):L) # this idiom's a little funny
             for (jx,x) in enumerate(xs)
                 jrightmost = min(L, jr + x - 1)
-                srmn[jjr, jx] = mana(sites, ψ, jr, jrightmost)
+                if jrightmost > L/4 + x - 1
+                    srmn[jjr, jx] = mana(sites, ψ, jr, jrightmost)
+                end
             end
-        end 
+        end
+        @show srmn[:,2]
+        
         df[jθ, :stpmn] = stpmn
         df[jθ, :slmn] = slmn
         df[jθ, :srmn] = srmn
         df[jθ, :θ]     = θ
         df[jθ, :jl]    = jl
-        df[jθ, :jrs]   = jrs
         
         GC.gc()
     end
