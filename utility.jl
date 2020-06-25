@@ -5,8 +5,7 @@ function symmetrizer(sites)
     I  = MPO(sites, Vector{String}(["Id"   for j in 1:N]))
     X  = MPO(sites, Vector{String}(["X"    for j in 1:N]))
     X2 = MPO(sites, Vector{String}(["XH" for j in 1:N]))
-    sym = sum(I,X)
-    sym = sum(sym, X2)
+    sym = I + X + X2
     sym[1] *= (1.0 / sqrt(3) )
     return sym
 end
