@@ -6,6 +6,13 @@ using Serialization
 using Statistics
 using DataFrames
 
+
+# this is witchcraft
+# https://github.com/ITensor/ITensors.jl/issues/437
+using NDTensors
+Base.eltype(::Combiner) = eltype(Combiner)
+
+
 include("utility.jl")
 include("potts-sites.jl")
 
