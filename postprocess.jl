@@ -210,7 +210,7 @@ ind = Index(3)
 #MPS(v :: Vector{<:ITensor}) = MPS(length(v), v)
 #MPO(v :: Vector{<:ITensor}) = MPO(length(v), v)
 
-function measure(M :: MPS, sites :: Array{Index,1}, qs)
+function measure(M :: MPS, sites :: Array{<:Index,1}, qs)
     N = length(M)
     @assert length(sites) == N
     orthogonalize!(M, N)
