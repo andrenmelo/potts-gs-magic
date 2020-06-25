@@ -13,7 +13,7 @@ end
 #builtin is somehow pathological: out of memory error
 function cdw_applyMPO(A :: MPO, ψ :: MPS)
     φA = [mapprime(ψ[j] * A[j], 1, 0) for j in 1:length(ψ)]
-    φ = MPS(length(ψ), φA)    
+    φ = MPS(φA)    
     return φ
 end
 

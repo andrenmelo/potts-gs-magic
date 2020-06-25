@@ -5,7 +5,7 @@ using LinearAlgebra
 using Serialization
 using Statistics
 using DataFrames
-
+using Pkg; 
 
 # this is witchcraft
 # https://github.com/ITensor/ITensors.jl/issues/437
@@ -21,7 +21,9 @@ git_commit(path :: String) = cd(git_commit, path)
 
 postprocess_commit = git_commit(@__DIR__())
 itensors_dir = ENV["ITENSORSJL_DIR"]
-postprocess_itensor_commit = git_commit(itensors_dir)
+#postprocess_itensor_commit = git_commit(itensors_dir)
+# this is frustratingly obtuse
+postprocess_itensor_commit = Pkg.dependencies()[Pkg.project().dependencies["ITensors"]].version
 
 arr1d(a :: Array) = reshape(a, length(a))
 
@@ -72,7 +74,7 @@ function measure(M :: MPS, sites :: Array{Index,1}, qs)
         U,S,V = svd(M[j],rinds)
         M[j] = U
         M[j-1] *= (S*V)
-        ITensors.setRightLim!(M,j)
+        ITensors.setrightlim!(M,j)
 
         # measurements
         s = S |> array
@@ -231,7 +233,7 @@ function measure(M :: MPS, sites :: Array{<:Index,1}, qs)
         U,S,V = svd(M[j],rinds)
         M[j] = U
         M[j-1] *= (S*V)
-        ITensors.setRightLim!(M,j)
+        ITensors.setrightlim!(M,j)
 
         # measurements
         s = S |> array
@@ -296,10 +298,7 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, x :: Int)
     # left side: construct x-site rdm starting at jl,
     # with dangling virtual index
     lsites = jl:min(N, jl + x - 1)
-    @show x
-    println("L part")
     for j = lsites
-        @show j
         Lenv *= ψ[j]
         Lenv *= ψ[j] |> prime |> dag
     end
@@ -329,9 +328,7 @@ function twopoint_rdm(ψ :: MPS, sites, jl :: Int, jrs, x :: Int)
         # with dangling virtual index
 
         rsites = jrightmost :-1:jr
-        println("R part")
         for j = rsites
-            @show j
             Renv *= ψ[j]
             Renv *= ψ[j] |> prime |> dag
         end
@@ -459,7 +456,6 @@ for dir = abspath.(ARGS)
                 df[jθ, :stpS2] = [S2(ρ)                 for (ρ, sts) in zip(ρs, tpsites)]
             end
         end
-        @show stpmn[:,2]
 
         # twopoint_rdm puts the oc at jl.
         # We need the manas of the rdms of the two regions separately;
@@ -487,7 +483,6 @@ for dir = abspath.(ARGS)
                 end
             end
         end
-        @show srmn[:,2]
         
         df[jθ, :stpmn] = stpmn
         df[jθ, :slmn] = slmn
