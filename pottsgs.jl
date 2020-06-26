@@ -140,9 +140,10 @@ long      = opts["long"]
 outdir  = opts["outdir"]
 subdate = opts["subdate"]
 
-itensors_dir = ENV["ITENSORSJL_DIR"]
 
-dir = "$outdir/$jobname/$subdate/$(git_commit(itensors_dir))-$(git_commit(@__DIR__()))_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi0$χ0"
+using Pkg; itensors_version = Pkg.dependencies()[Pkg.project().dependencies["ITensors"]].version
+
+dir = "$outdir/$jobname/$subdate/$(itensors_version)-$(git_commit(@__DIR__()))_L$L-thetamin$θmin-dtheta$dθ-thetamax$θmax-lambda$λ-chi0$χ0"
 if noise     dir = "$dir-noise$noise" end
 if adiabatic dir = "$dir-adiabatic$adiabatic" end
 

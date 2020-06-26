@@ -20,7 +20,6 @@ git_commit() = String(read(pipeline(`git log`, `head -1`, `cut -d ' ' -f 2`, `cu
 git_commit(path :: String) = cd(git_commit, path)
 
 postprocess_commit = git_commit(@__DIR__())
-itensors_dir = ENV["ITENSORSJL_DIR"]
 #postprocess_itensor_commit = git_commit(itensors_dir)
 # this is frustratingly obtuse
 postprocess_itensor_commit = Pkg.dependencies()[Pkg.project().dependencies["ITensors"]].version
