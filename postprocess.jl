@@ -383,7 +383,6 @@ for dir = abspath.(ARGS)
     df = DataFrame([:θ     => Array{Float64}(undef, Nθ),
                     :L     => Array{Int64}(undef, Nθ),
                     :jl    => Array{Int64}(undef, Nθ),
-                    :jrs   => Array{Array{Int64,1}}(undef, Nθ),
                     :direction => Array{Symbol}(undef, Nθ),
                     :E2 => Array{Float64}(undef, Nθ),
                     :E1 => Array{Float64}(undef, Nθ),
@@ -477,7 +476,7 @@ for dir = abspath.(ARGS)
         # order of for loops will be super important for performance
         for (jjr, jr) in enumerate(Int(L/4+1):L) # this idiom's a little funny
             for (jx,x) in enumerate(xs)
-                jrightmost = min(L, jr + x - 1)
+                jrightmost = min(L, jr + x )
                 if jrightmost > L/4 + x - 1
                     srmn[jjr, jx] = mana(sites, ψ, jr, jrightmost)
                 end
