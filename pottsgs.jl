@@ -32,11 +32,11 @@ function ket0_mps(sites)
     links = [Index(1, "Link,l=$ii") for ii in 1:N-1]
     M = MPS(sites)
 
-    M[1] = ITensor([1 0 0], links[1], sites[1])
+    M[1] = ITensor([0 0 1], links[1], sites[1])
     for j = 2:N-1
-        M[j] = ITensor([1 0 0], links[j-1], links[j], sites[j])
+        M[j] = ITensor([0 0 1], links[j-1], links[j], sites[j])
     end
-    M[N] = ITensor([1 0 0], links[N-1], sites[N])
+    M[N] = ITensor([0 0 1], links[N-1], sites[N])
     return M
 end
 
