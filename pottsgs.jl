@@ -71,12 +71,12 @@ function potts3gs(θ, λ, χ0, sites;
     if long
         observer = DMRGObserver(Array{String}(undef,0), sites)
     else
-        observer = DMRGObserver(Array{String}(undef,0), sites, energy_tol = 1e-10)
+        observer = DMRGObserver(Array{String}(undef,0), sites, energy_tol = 1e-7)
     end
     
     sweeps = Sweeps(400)
     maxdim!(sweeps, 10,20,100,100,200)
-    cutoff!(sweeps, 1E-10)
+    cutoff!(sweeps, 1E-7)
     if noise noise!(sweeps, [2.0^(-j) for j in 2:50]...) end
 
     if ψ0 != nothing
